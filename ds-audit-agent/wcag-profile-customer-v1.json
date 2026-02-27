@@ -1,0 +1,26 @@
+{
+    "profile_name": "wcag_customer_standard_v1",
+    "description": "WCAG AA baseline for customer-facing product UI",
+    "target_level": "AA",
+    "contrast_rules": {
+        "body_text_min_ratio": 4.5,
+        "large_text_min_ratio": 3.0,
+        "aaa_ratio_reference": 7.0,
+        "enforce_aaa": false
+    },
+    "typography_rules": {
+        "minimum_body_font_size_px": 14,
+        "allow_12px_secondary_text": true,
+        "minimum_line_height_ratio": 1.2,
+        "low_weight_small_text_warning": true
+    },
+    "interaction_rules": {
+        "focus_indicator_required": true,
+        "hover_color_only_allowed": true,
+        "disabled_opacity_only_allowed": true
+    },
+    "dark_mode_rules": {
+        "dark_mode_required": true,
+        "contrast_must_hold_in_dark_mode": true
+    }
+}

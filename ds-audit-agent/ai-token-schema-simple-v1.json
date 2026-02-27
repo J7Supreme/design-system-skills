@@ -1,0 +1,32 @@
+{
+    "schema_name": "ai_token_schema_simple_v1",
+    "description": "Simple token naming standard for early-stage DS governance",
+    "structure_type": "flat",
+    "categories": [
+        "color",
+        "font",
+        "spacing",
+        "radius",
+        "border",
+        "shadow",
+        "opacity"
+    ],
+    "naming_convention": {
+        "pattern": "category.role.scale",
+        "example": "color.primary.500",
+        "separator": ".",
+        "lowercase_required": true,
+        "no_spaces_allowed": true
+    },
+    "rules": {
+        "hard_code_allowed": true,
+        "hard_code_warning_threshold_percent": 15,
+        "semantic_layer_required": false,
+        "component_layer_required": false,
+        "token_reference_required": false
+    },
+    "future_upgrade_path": {
+        "next_schema": "ai_token_schema_layered_v2",
+        "migration_strategy": "introduce semantic layer after naming stabilized"
+    }
+}
