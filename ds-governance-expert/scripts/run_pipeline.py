@@ -425,7 +425,7 @@ def run_phase1(
             "node_id": node_id,
             "figma_url": figma_url,
             "audit_timestamp": datetime.now().isoformat(),
-            "auditor": "ds-governance-expert v1 (pipeline-local)",
+            "auditor": "Design System Governance Workflow v1 (pipeline-local)",
             "data_source": source,
             "data_source_reference": source_reference,
         },
@@ -519,7 +519,7 @@ def require_gate(ok: bool, gate_name: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="AI Design System Governance Pipeline")
+    parser = argparse.ArgumentParser(description="Design System Governance Workflow")
     subparsers = parser.add_subparsers(dest="command", required=True, help="Pipeline phase to execute")
 
     # Command: audit (Phase 1)

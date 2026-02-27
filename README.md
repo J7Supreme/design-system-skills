@@ -1,10 +1,12 @@
-# Design System Governance Expert
+# Design System Governance Workflow
 
-An AI-native governance pipeline for Figma-based design systems. It audits, optimizes, refactors, and syncs design tokens to code outputs while preserving accessibility and token architecture quality.
+An AI-native workflow for Figma-based design systems built for existing company orgs and review processes. It audits, optimizes, refactors, and syncs design tokens to code outputs while also producing visual reports that support internal alignment, stakeholder reviews, and structured handoffs.
 
 ## Overview
 
-`ds-governance-expert` is a structured pipeline for managing the lifecycle of a design system. It bridges Figma variables and production code outputs such as Tailwind, CSS custom properties, and W3C design token formats.
+`Design System Governance Workflow` is a structured workflow for managing the lifecycle of a design system inside an established organization. Unlike a one-shot generate-from-scratch flow, it is designed for staged delivery across audit, refactor, and sync phases, with artifacts that are useful not only for production output but also for governance, internal communication, and reporting.
+
+The current package directory remains `ds-governance-expert`, while the skill's user-facing name is `Design System Governance Workflow`.
 
 ## Architecture
 
