@@ -1,0 +1,12 @@
+0_optimizer-report/*
+!0_optimizer-report/.gitkeep
+1_audit-report/*
+!1_audit-report/.gitkeep
+2_figma-mcp-snapshot/*
+!2_figma-mcp-snapshot/.gitkeep
+3_refactor-output/*
+!3_refactor-output/.gitkeep
+4_code-sync-output/*
+!4_code-sync-output/.gitkeep
+
+ds-governance-expert/scripts/pipeline-config.json

@@ -1,36 +1,36 @@
-# 🤖 Design System Agents
+# Design System Governance Expert
 
-An AI-native governance pipeline for Figma-based design systems. Automatically audit, gap-analyze, refactor, and sync design tokens to code with multi-agent orchestration.
+An AI-native governance pipeline for Figma-based design systems. It audits, optimizes, refactors, and syncs design tokens to code outputs while preserving accessibility and token architecture quality.
 
-## 🚀 Overview
+## Overview
 
-Design System Agents is a structured pipeline that uses specialized AI agents to manage the lifecycle of a design system. It bridges the gap between Figma design variables and production code (Tailwind, CSS, W3C) while ensuring accessibility and architectural integrity.
+`ds-governance-expert` is a structured pipeline for managing the lifecycle of a design system. It bridges Figma variables and production code outputs such as Tailwind, CSS custom properties, and W3C design token formats.
 
-## 🏛️ Architecture
+## Architecture
 
-- **Phase 1: Audit & Analysis** (`audit`)
+- **Phase 1: Audit & Optimization** (`audit`)
   - **Figma Variable Extraction**: Pulls raw data via Figma MCP.
-  - **Token Gap Analysis**: Identifies missing tokens against standards.
+  - **Token Coverage Analysis**: Identifies missing tokens against standards.
   - **Design System Audit**: Scores the system on accessibility, structure, and AI-readiness.
 - **Phase 2: Refactoring** (`refactor`)
   - Consolidates tokens, repairs accessibility issues, and generates dark mode sets.
 - **Phase 3: Code Sync** (`sync`)
   - Translates tokens into Tailwind, CSS Custom Properties, and W3C Token format.
 
-## 📦 Project Structure
+## Project Structure
 
 ```text
 .
-├── .agent/skills/           # Atomic AI Agent skill definitions
-│   ├── ds-audit-agent/      # Audit logic & instructions
-│   ├── ds-refactor-agent/   # Refactoring logic
-│   └── code-sync-agent/     # Code generation logic
-├── scripts/                 # Core execution scripts
-├── run_pipeline.py          # Main entry point (CLI)
+├── ds-governance-expert/
+│   ├── SKILL.md
+│   ├── scripts/
+│   └── templates/
+├── 0_optimizer-report/      # Generated optimization reports
+├── 1_audit-report/          # Generated audit reports
 └── ...
 ```
 
-## 🛠️ Getting Started
+## Getting Started
 
 ### Prerequisites
 - Python 3.10+
@@ -39,14 +39,14 @@ Design System Agents is a structured pipeline that uses specialized AI agents to
 ### Running a Phase
 ```bash
 # Phase 1: Audit
-python run_pipeline.py audit --figma-url <LINK>
+python ds-governance-expert/scripts/run_pipeline.py audit --figma-url <LINK>
 
 # Phase 2: Refactor (requires Run ID from Phase 1)
-python run_pipeline.py refactor --run-id <RUN_ID>
+python ds-governance-expert/scripts/run_pipeline.py refactor --run-id <RUN_ID>
 
 # Phase 3: Sync (requires Run ID from Phase 2)
-python run_pipeline.py sync --run-id <RUN_ID>
+python ds-governance-expert/scripts/run_pipeline.py sync --run-id <RUN_ID>
 ```
 
-## 📄 License
+## License
 This project is licensed under the MIT License.
