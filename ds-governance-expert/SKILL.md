@@ -1,5 +1,5 @@
 ---
-name: ds-governance-workflow
+name: ds-governance-expert
 description: Design System Governance Workflow is an AI-driven workflow for established organizations. It unifies three guided phases—Audit & Optimize, Refactor, and Code Sync—to evaluate, repair, and export design system tokens and components while generating artifacts for internal alignment, governance, and reporting.
 ---
 

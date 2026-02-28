@@ -32,6 +32,25 @@ The current package directory remains `ds-governance-expert`, while the skill's 
 └── ...
 ```
 
+## Install
+
+This skill is published with the install slug `ds-governance-expert` and the user-facing display name `Design System Governance Workflow`.
+
+```bash
+# Install from a GitHub repository in the Vercel skills ecosystem
+npx skills add <github-owner>/<repo-name>
+
+# List skills exposed by the repository
+npx skills add <github-owner>/<repo-name> --list
+```
+
+## Compatibility
+
+- Designed to be agent-agnostic within the Vercel skills ecosystem.
+- Best suited for agents that can follow multi-stage workflows, work with repository files, and handle structured output artifacts.
+- Intended for established organization workflows with review cycles, stakeholder alignment, and reporting needs, rather than one-shot generate-from-scratch usage.
+- Recommended to validate behavior in your target clients such as Claude Code, Codex, and Cursor before broad rollout.
+
 ## Getting Started
 
 ### Prerequisites
