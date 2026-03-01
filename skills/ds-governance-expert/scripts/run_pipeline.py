@@ -166,9 +166,36 @@ def is_hex_color(value: str) -> bool:
     return isinstance(value, str) and re.match(r"^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$", value) is not None
 
 
-def load_local_design_tokens(base_dir: Path) -> dict:
-    with (base_dir / "design-tokens.json").open("r") as f:
-        return json.load(f)
+def resolve_skill_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def resolve_repo_root() -> Path:
+    skill_root = resolve_skill_root()
+    if skill_root.parent.name == "skills":
+        return skill_root.parent.parent
+    return skill_root.parent
+
+
+def find_local_design_tokens_path(repo_root: Path, skill_root: Path) -> Path:
+    candidates = [
+        repo_root / "design-tokens.json",
+        skill_root / "design-tokens.json",
+        skill_root / "scripts" / "design-tokens.json",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    raise FileNotFoundError(
+        "No design-tokens.json found. Checked: "
+        + ", ".join(str(path) for path in candidates)
+    )
+
+
+def load_local_design_tokens(repo_root: Path, skill_root: Path):
+    design_tokens_path = find_local_design_tokens_path(repo_root, skill_root)
+    with design_tokens_path.open("r") as f:
+        return json.load(f), design_tokens_path
 
 
 def infer_color_name(var_name: str) -> str:
@@ -356,14 +383,15 @@ def load_figma_mcp_tokens(
 
 
 def run_phase1(
-    base_dir: Path,
+    repo_root: Path,
+    skill_root: Path,
     figma_url: str,
     run_id: str,
     figma_mcp_variables_path: Optional[str] = None,
     figma_api_token: Optional[str] = None,
     figma_api_base: str = "https://api.figma.com/v1",
 ):
-    fallback_tokens = load_local_design_tokens(base_dir)
+    fallback_tokens, fallback_source_path = load_local_design_tokens(repo_root, skill_root)
 
     file_id, node_id = extract_figma_parts(figma_url)
     design_tokens = None
@@ -371,7 +399,7 @@ def run_phase1(
     source_path = None
 
     # Priority: MCP source -> REST API -> local fallback
-    design_tokens, source, source_path = load_figma_mcp_tokens(base_dir, file_id, node_id, figma_mcp_variables_path)
+    design_tokens, source, source_path = load_figma_mcp_tokens(repo_root, file_id, node_id, figma_mcp_variables_path)
     if not design_tokens and figma_api_token:
         rest_tokens, rest_source = fetch_figma_variables_via_rest(file_id, figma_api_token, figma_api_base)
         if rest_tokens:
@@ -381,12 +409,12 @@ def run_phase1(
     if not design_tokens:
         design_tokens = fallback_tokens
         source = "design-tokens.json snapshot"
-        source_path = base_dir / "design-tokens.json"
+        source_path = fallback_source_path
 
-    source_reference = sanitize_source_reference(source_path, base_dir)
+    source_reference = sanitize_source_reference(source_path, repo_root)
 
     # Phase 1 consolidation: all outputs go into a single audit directory
-    audit_dir = base_dir / "1_audit-report" / f"audit_{run_id}"
+    audit_dir = repo_root / "1_audit-report" / f"audit_{run_id}"
     audit_dir.mkdir(parents=True, exist_ok=True)
 
     # Save the design tokens snapshot used for this run
@@ -445,9 +473,7 @@ def run_phase1(
     )
 
     # Generate audit HTML using template
-    audit_template = base_dir / "ds-governance-expert" / "templates" / "audit-report-template.html"
-    if not audit_template.exists():
-        audit_template = Path(__file__).resolve().parent.parent / "templates" / "audit-report-template.html"
+    audit_template = skill_root / "templates" / "audit-report-template.html"
     if audit_template.exists():
         import re as _re
         template_html = audit_template.read_text(encoding="utf-8")
@@ -475,13 +501,13 @@ def run_phase1(
     return audit_dir, used_design_tokens_path
 
 
-def run_phase2(base_dir: Path, run_id: str, design_tokens_path: Path):
-    audit_dir = base_dir / "1_audit-report" / f"audit_{run_id}"
-    refactor_dir = base_dir / "3_refactor-output" / f"refactor_{run_id}"
+def run_phase2(repo_root: Path, script_dir: Path, run_id: str, design_tokens_path: Path):
+    audit_dir = repo_root / "1_audit-report" / f"audit_{run_id}"
+    refactor_dir = repo_root / "3_refactor-output" / f"refactor_{run_id}"
     subprocess.run(
         [
             "python3",
-            str(base_dir / "generate_refactor_outputs.py"),
+            str(script_dir / "generate_refactor_outputs.py"),
             "--design-tokens",
             str(design_tokens_path),
             "--proposed",
@@ -494,13 +520,13 @@ def run_phase2(base_dir: Path, run_id: str, design_tokens_path: Path):
     return refactor_dir
 
 
-def run_phase3(base_dir: Path, run_id: str):
-    refactor_dir = base_dir / "3_refactor-output" / f"refactor_{run_id}"
-    sync_dir = base_dir / "4_code-sync-output" / f"sync_{run_id}"
+def run_phase3(repo_root: Path, script_dir: Path, run_id: str):
+    refactor_dir = repo_root / "3_refactor-output" / f"refactor_{run_id}"
+    sync_dir = repo_root / "4_code-sync-output" / f"sync_{run_id}"
     subprocess.run(
         [
             "python3",
-            str(base_dir / "generate_code_sync_outputs.py"),
+            str(script_dir / "generate_code_sync_outputs.py"),
             "--input",
             str(refactor_dir / "figma-sync-tokens.json"),
             "--dark",
@@ -552,11 +578,13 @@ def main():
 
     args = parser.parse_args()
 
-    base_dir = Path(__file__).resolve().parent
+    script_dir = Path(__file__).resolve().parent
+    skill_root = resolve_skill_root()
+    repo_root = resolve_repo_root()
 
     if args.command == "audit":
         run_id = args.run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
-        config_path = base_dir / "pipeline-config.json"
+        config_path = script_dir / "pipeline-config.json"
         config = {
             "run_id": run_id,
             "figma_url": args.figma_url,
@@ -569,7 +597,8 @@ def main():
 
         api_token = args.figma_api_token or os.getenv("FIGMA_ACCESS_TOKEN")
         audit_dir, used_design_tokens_path = run_phase1(
-            base_dir,
+            repo_root,
+            skill_root,
             args.figma_url,
             run_id,
             args.figma_mcp_variables,
@@ -583,22 +612,22 @@ def main():
 
     elif args.command == "refactor":
         run_id = args.run_id
-        used_design_tokens_path = base_dir / "1_audit-report" / f"audit_{run_id}" / "design-tokens.used.json"
+        used_design_tokens_path = repo_root / "1_audit-report" / f"audit_{run_id}" / "design-tokens.used.json"
         if not used_design_tokens_path.exists():
             raise FileNotFoundError(f"Missing required input for refactor: {used_design_tokens_path}. Did you run 'audit' first?")
             
-        refactor_dir = run_phase2(base_dir, run_id, used_design_tokens_path)
+        refactor_dir = run_phase2(repo_root, script_dir, run_id, used_design_tokens_path)
         print("Phase 2 (Refactor) complete")
         print(f"Refactor Output: {refactor_dir}")
         print("To proceed to Phase 3, confirm the outputs and run: python run_pipeline.py sync --run-id " + run_id)
 
     elif args.command == "sync":
         run_id = args.run_id
-        refactor_dir = base_dir / "3_refactor-output" / f"refactor_{run_id}"
+        refactor_dir = repo_root / "3_refactor-output" / f"refactor_{run_id}"
         if not (refactor_dir / "figma-sync-tokens.json").exists():
             raise FileNotFoundError(f"Missing required input for code sync. Did you run 'refactor' first for run-id {run_id}?")
             
-        sync_dir = run_phase3(base_dir, run_id)
+        sync_dir = run_phase3(repo_root, script_dir, run_id)
         print("Phase 3 (Code Sync) complete")
         print(f"Code Sync Output: {sync_dir}")
 

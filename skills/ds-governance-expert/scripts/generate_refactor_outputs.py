@@ -3,6 +3,32 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+
+def resolve_skill_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def resolve_repo_root() -> Path:
+    skill_root = resolve_skill_root()
+    if skill_root.parent.name == "skills":
+        return skill_root.parent.parent
+    return skill_root.parent
+
+
+def find_local_design_tokens_path(repo_root: Path, skill_root: Path) -> Path:
+    candidates = [
+        repo_root / "design-tokens.json",
+        skill_root / "design-tokens.json",
+        skill_root / "scripts" / "design-tokens.json",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    raise FileNotFoundError(
+        "No design-tokens.json found. Checked: "
+        + ", ".join(str(path) for path in candidates)
+    )
+
 def hex_to_rgb(hex_str):
     hex_str = hex_str.lstrip('#')
     if len(hex_str) == 6:
@@ -22,8 +48,8 @@ def overlay_on_white(r, g, b, a):
     out_b = int(b * alpha + 255 * (1 - alpha))
     return rgb_to_hex(out_r, out_g, out_b)
 
-def find_latest_proposed_tokens(base_dir: Path) -> Path:
-    candidates = list(base_dir.glob("1_audit-report/audit_*/proposed-tokens.json"))
+def find_latest_proposed_tokens(repo_root: Path) -> Path:
+    candidates = list((repo_root / "1_audit-report").glob("audit_*/proposed-tokens.json"))
     if not candidates:
         raise FileNotFoundError("No proposed-tokens.json found under 1_audit-report/audit_*/")
     return max(candidates, key=lambda p: p.stat().st_mtime)
@@ -46,14 +72,15 @@ def main():
     parser.add_argument("--out-dir", type=str, default=None, help="Output directory for refactor artifacts")
     args = parser.parse_args()
 
-    base_dir = Path(__file__).resolve().parent
-    design_tokens_path = Path(args.design_tokens) if args.design_tokens else base_dir / "design-tokens.json"
-    proposed_tokens_path = Path(args.proposed) if args.proposed else find_latest_proposed_tokens(base_dir)
+    skill_root = resolve_skill_root()
+    repo_root = resolve_repo_root()
+    design_tokens_path = Path(args.design_tokens) if args.design_tokens else find_local_design_tokens_path(repo_root, skill_root)
+    proposed_tokens_path = Path(args.proposed) if args.proposed else find_latest_proposed_tokens(repo_root)
     if args.out_dir:
         out_dir = Path(args.out_dir)
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_dir = base_dir / "3_refactor-output" / f"refactor_{timestamp}"
+        out_dir = repo_root / "3_refactor-output" / f"refactor_{timestamp}"
 
     out_dir.mkdir(parents=True, exist_ok=True)
 

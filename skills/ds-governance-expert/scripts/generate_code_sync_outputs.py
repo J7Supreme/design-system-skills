@@ -10,8 +10,19 @@ def nested_set(dic, keys, value):
     dic[keys[-1]] = value
 
 
-def find_latest_refactor_dir(base_dir: Path) -> Path:
-    candidates = list((base_dir / "3_refactor-output").glob("refactor_*"))
+def resolve_skill_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def resolve_repo_root() -> Path:
+    skill_root = resolve_skill_root()
+    if skill_root.parent.name == "skills":
+        return skill_root.parent.parent
+    return skill_root.parent
+
+
+def find_latest_refactor_dir(repo_root: Path) -> Path:
+    candidates = list((repo_root / "3_refactor-output").glob("refactor_*"))
     if not candidates:
         raise FileNotFoundError("No refactor_* directory found under 3_refactor-output/")
     return max(candidates, key=lambda p: p.stat().st_mtime)
@@ -52,8 +63,10 @@ def main():
     parser.add_argument("--out-dir", type=str, default=None, help="Output directory for code-sync artifacts")
     args = parser.parse_args()
 
-    base_dir = Path(__file__).resolve().parent
-    latest_refactor_dir = find_latest_refactor_dir(base_dir)
+    repo_root = resolve_repo_root()
+    latest_refactor_dir = None
+    if not args.input or not args.dark:
+        latest_refactor_dir = find_latest_refactor_dir(repo_root)
 
     input_path = Path(args.input) if args.input else latest_refactor_dir / "figma-sync-tokens.json"
     dark_mode_path = Path(args.dark) if args.dark else latest_refactor_dir / "dark-mode-tokens.json"
@@ -62,7 +75,7 @@ def main():
         out_dir = Path(args.out_dir)
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_dir = base_dir / "4_code-sync-output" / f"sync_{timestamp}"
+        out_dir = repo_root / "4_code-sync-output" / f"sync_{timestamp}"
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
