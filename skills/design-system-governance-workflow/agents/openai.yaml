@@ -1,4 +1,4 @@
 interface:
   display_name: "Design System Governance Workflow"
   short_description: "Audit, refactor, and sync enterprise design systems"
-  default_prompt: "Use $ds-governance-expert to audit, refactor, and sync my design system from Figma to code."
+  default_prompt: "Use $design-system-governance-workflow to audit, refactor, and sync my design system from Figma to code."

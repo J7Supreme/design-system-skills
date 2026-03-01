@@ -6,7 +6,7 @@ An AI-native workflow for Figma-based design systems built for existing company 
 
 `Design System Governance Workflow` is a structured workflow for managing the lifecycle of a design system inside an established organization. Unlike a one-shot generate-from-scratch flow, it is designed for staged delivery across audit, refactor, and sync phases, with artifacts that are useful not only for production output but also for governance, internal communication, and reporting.
 
-The skill package lives at `skills/ds-governance-expert`, while the skill's user-facing name is `Design System Governance Workflow`.
+The skill package lives at `skills/design-system-governance-workflow`, while the skill's user-facing name is `Design System Governance Workflow`.
 
 ## Architecture
 
@@ -24,7 +24,7 @@ The skill package lives at `skills/ds-governance-expert`, while the skill's user
 ```text
 .
 ├── skills/
-│   └── ds-governance-expert/
+│   └── design-system-governance-workflow/
 │   ├── SKILL.md
 │   ├── scripts/
 │   └── templates/
@@ -35,7 +35,7 @@ The skill package lives at `skills/ds-governance-expert`, while the skill's user
 
 ## Install
 
-This skill is published with the install slug `ds-governance-expert` and the user-facing display name `Design System Governance Workflow`.
+This skill is published with the install slug `design-system-governance-workflow` and the user-facing display name `Design System Governance Workflow`.
 
 ```bash
 # Install from a GitHub repository in the Vercel skills ecosystem
@@ -61,13 +61,13 @@ npx skills add <github-owner>/<repo-name> --list
 ### Running a Phase
 ```bash
 # Phase 1: Audit
-python skills/ds-governance-expert/scripts/run_pipeline.py audit --figma-url <LINK>
+python skills/design-system-governance-workflow/scripts/run_pipeline.py audit --figma-url <LINK>
 
 # Phase 2: Refactor (requires Run ID from Phase 1)
-python skills/ds-governance-expert/scripts/run_pipeline.py refactor --run-id <RUN_ID>
+python skills/design-system-governance-workflow/scripts/run_pipeline.py refactor --run-id <RUN_ID>
 
 # Phase 3: Sync (requires Run ID from Phase 2)
-python skills/ds-governance-expert/scripts/run_pipeline.py sync --run-id <RUN_ID>
+python skills/design-system-governance-workflow/scripts/run_pipeline.py sync --run-id <RUN_ID>
 ```
 
 ## License

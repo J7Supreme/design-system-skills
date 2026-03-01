@@ -1,5 +1,5 @@
 ---
-name: ds-governance-expert
+name: design-system-governance-workflow
 description: Design System Governance Workflow for auditing, refactoring, and syncing enterprise design systems, design tokens, Figma variables, and developer handoff outputs.
 ---
 
