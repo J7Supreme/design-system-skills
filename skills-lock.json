@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "design-system-governance-workflow": {
+      "source": "J7Supreme/design-system-skills",
+      "sourceType": "github",
+      "computedHash": "7d2f563f1ae9e8b785ce54d81e3911428f489c86f56a658bfba8ed921dcb43e6"
+    }
+  }
+}
