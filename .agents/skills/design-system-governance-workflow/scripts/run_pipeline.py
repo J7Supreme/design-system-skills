@@ -9,6 +9,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 # Import the new decoupled HTML preview generator
+from audit_report_data import normalize_audit_data
 from generate_token_preview import generate_preview
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -42,6 +43,84 @@ def sanitize_source_reference(source_path, base_dir: Path) -> Optional[str]:
     if candidate.is_absolute():
         return candidate.name
     return source_text
+
+
+def build_source_details(
+    source_kind: str,
+    source_label: str,
+    source_reference: Optional[str],
+    fallback_reason: Optional[str] = None,
+    prerequisite_actions: Optional[list[dict]] = None,
+    prerequisite_notice: Optional[str] = None,
+    audit_optimize_prerequisites_met: bool = True,
+) -> dict:
+    mcp_used = source_kind == "figma-mcp"
+    freshness_note = (
+        "Primary MCP extraction path used."
+        if mcp_used
+        else "Fallback source used; freshness/completeness may differ from direct MCP extraction."
+    )
+    user_notice = None
+    if not mcp_used:
+        reason = fallback_reason or "Figma MCP data was unavailable."
+        user_notice = (
+            f"Used fallback source '{source_label}' because {reason} "
+            "Results may differ in freshness or completeness from direct Figma MCP extraction."
+        )
+
+    return {
+        "source_kind": source_kind,
+        "source_label": source_label,
+        "source_reference": source_reference,
+        "mcp_used": mcp_used,
+        "fallback_reason": fallback_reason,
+        "freshness_note": freshness_note,
+        "user_notice": user_notice,
+        "prerequisite_actions": prerequisite_actions or [],
+        "prerequisite_notice": prerequisite_notice,
+        "audit_optimize_prerequisites_met": audit_optimize_prerequisites_met,
+    }
+
+
+def build_phase1_prerequisite_actions(
+    mcp_connected: bool,
+    api_connected: bool,
+    mcp_reason: Optional[str],
+    api_reason: Optional[str],
+) -> tuple[list[dict], Optional[str], bool]:
+    actions = [
+        {
+            "id": "connect_figma_mcp",
+            "title": "Connect Figma MCP",
+            "status": "ready" if mcp_connected else "required",
+            "reason": None if mcp_connected else (mcp_reason or "Figma MCP could not provide variables for this file."),
+            "instruction": (
+                "Reconnect Figma MCP for this file, or export a fresh MCP snapshot and pass "
+                "--figma-mcp-variables / FIGMA_MCP_VARIABLES_JSON."
+            ),
+        },
+        {
+            "id": "connect_figma_api",
+            "title": "Connect Figma API",
+            "status": "ready" if api_connected else "required",
+            "reason": None if api_connected else (api_reason or "Figma REST API could not be reached for this file."),
+            "instruction": (
+                "Provide a working Figma REST API token via --figma-api-token or FIGMA_ACCESS_TOKEN "
+                "and confirm the target file is reachable."
+            ),
+        },
+    ]
+
+    prerequisites_met = mcp_connected and api_connected
+    prerequisite_notice = None
+    if not prerequisites_met:
+        prerequisite_notice = (
+            "Audit/Optimize prerequisites are incomplete. Before relying on this run as the primary result, "
+            "do these two things first: 1) connect Figma MCP for the target file; "
+            "2) connect the Figma REST API with a valid token and file access."
+        )
+
+    return actions, prerequisite_notice, prerequisites_met
 
 
 def first_hex(colors: dict, fallback="#007fff"):
@@ -173,6 +252,8 @@ def resolve_skill_root() -> Path:
 def resolve_repo_root() -> Path:
     skill_root = resolve_skill_root()
     if skill_root.parent.name == "skills":
+        if skill_root.parent.parent.name in {".agents", ".agent"}:
+            return skill_root.parent.parent.parent
         return skill_root.parent.parent
     return skill_root.parent
 
@@ -391,27 +472,74 @@ def run_phase1(
     figma_api_token: Optional[str] = None,
     figma_api_base: str = "https://api.figma.com/v1",
 ):
-    fallback_tokens, fallback_source_path = load_local_design_tokens(repo_root, skill_root)
-
     file_id, node_id = extract_figma_parts(figma_url)
     design_tokens = None
     source = None
+    source_kind = None
     source_path = None
+    fallback_reason = None
+    rest_tokens = None
+    rest_source = None
+    rest_reason = None
 
     # Priority: MCP source -> REST API -> local fallback
-    design_tokens, source, source_path = load_figma_mcp_tokens(repo_root, file_id, node_id, figma_mcp_variables_path)
-    if not design_tokens and figma_api_token:
+    mcp_tokens, mcp_source, mcp_source_path = load_figma_mcp_tokens(repo_root, file_id, node_id, figma_mcp_variables_path)
+    mcp_reason = "No usable Figma MCP snapshot was found for the requested file."
+    if mcp_tokens:
+        design_tokens = mcp_tokens
+        source = mcp_source
+        source_kind = "figma-mcp"
+        source_path = mcp_source_path
+    else:
+        fallback_reason = mcp_reason
+
+    if figma_api_token:
         rest_tokens, rest_source = fetch_figma_variables_via_rest(file_id, figma_api_token, figma_api_base)
         if rest_tokens:
-            design_tokens = rest_tokens
-            source = rest_source
-            source_path = figma_api_base
+            if not design_tokens:
+                design_tokens = rest_tokens
+                source = rest_source
+                source_kind = "figma-rest-api"
+                source_path = figma_api_base
+        else:
+            rest_reason = "Figma REST API variables could not be retrieved for the requested file."
+            if not fallback_reason:
+                fallback_reason = rest_reason
+    else:
+        rest_reason = "No Figma REST API token was provided."
+
+    prerequisite_actions, prerequisite_notice, prerequisites_met = build_phase1_prerequisite_actions(
+        mcp_connected=bool(mcp_tokens),
+        api_connected=bool(rest_tokens),
+        mcp_reason=mcp_reason,
+        api_reason=rest_reason,
+    )
     if not design_tokens:
+        fallback_tokens, fallback_source_path = load_local_design_tokens(repo_root, skill_root)
         design_tokens = fallback_tokens
         source = "design-tokens.json snapshot"
+        source_kind = "local-snapshot"
         source_path = fallback_source_path
+        if figma_api_token:
+            if not fallback_reason:
+                fallback_reason = "Figma MCP and Figma REST API data were unavailable."
+        else:
+            fallback_reason = (
+                f"{fallback_reason} No Figma REST API token was provided."
+                if fallback_reason
+                else "Figma MCP data was unavailable and no Figma REST API token was provided."
+            )
 
     source_reference = sanitize_source_reference(source_path, repo_root)
+    source_details = build_source_details(
+        source_kind,
+        source,
+        source_reference,
+        fallback_reason,
+        prerequisite_actions=prerequisite_actions,
+        prerequisite_notice=prerequisite_notice,
+        audit_optimize_prerequisites_met=prerequisites_met,
+    )
 
     # Phase 1 consolidation: all outputs go into a single audit directory
     audit_dir = repo_root / "1_audit-report" / f"audit_{run_id}"
@@ -431,6 +559,13 @@ def run_phase1(
         "node_id": node_id,
         "source": source,
         "source_reference": source_reference,
+        "source_kind": source_kind,
+        "mcp_used": source_details["mcp_used"],
+        "fallback_reason": fallback_reason,
+        "user_notice": source_details["user_notice"],
+        "audit_optimize_prerequisites_met": source_details["audit_optimize_prerequisites_met"],
+        "prerequisite_notice": source_details["prerequisite_notice"],
+        "prerequisite_actions": source_details["prerequisite_actions"],
         "status": "phase1_completed",
     }
     (audit_dir / "optimizer-report.json").write_text(json.dumps(optimizer_report_json, indent=2))
@@ -441,6 +576,11 @@ def run_phase1(
         f"- Node ID: {node_id}\n"
         f"- Source: {source}\n"
         f"- Source Reference: {source_reference}\n"
+        f"- Source Kind: {source_kind}\n"
+        f"- MCP Used: {source_details['mcp_used']}\n"
+        f"- Audit/Optimize Prerequisites Met: {source_details['audit_optimize_prerequisites_met']}\n"
+        f"- Fallback Reason: {fallback_reason or 'None'}\n"
+        f"- Prerequisite Notice: {source_details['prerequisite_notice'] or 'None'}\n"
     )
 
     # ── Audit outputs ──
@@ -456,6 +596,13 @@ def run_phase1(
             "auditor": "Design System Governance Workflow v1 (pipeline-local)",
             "data_source": source,
             "data_source_reference": source_reference,
+            "data_source_kind": source_kind,
+            "mcp_used": source_details["mcp_used"],
+            "fallback_reason": fallback_reason,
+            "user_notice": source_details["user_notice"],
+            "audit_optimize_prerequisites_met": source_details["audit_optimize_prerequisites_met"],
+            "prerequisite_notice": source_details["prerequisite_notice"],
+            "prerequisite_actions": source_details["prerequisite_actions"],
         },
         "summary": {
             "overall_score": overall_score,
@@ -463,11 +610,17 @@ def run_phase1(
             "risk_level": "Medium",
         },
     }
+    audit_json = normalize_audit_data(audit_json, skill_root, design_tokens=design_tokens)
     (audit_dir / "audit-report.json").write_text(json.dumps(audit_json, indent=2))
     (audit_dir / "audit-report.md").write_text(
         "# DS Audit Report\n\n"
         f"- Figma URL: {figma_url}\n"
         f"- Data Source: {source}\n"
+        f"- Data Source Kind: {source_kind}\n"
+        f"- MCP Used: {source_details['mcp_used']}\n"
+        f"- Audit/Optimize Prerequisites Met: {source_details['audit_optimize_prerequisites_met']}\n"
+        f"- Fallback Reason: {fallback_reason or 'None'}\n"
+        f"- Prerequisite Notice: {source_details['prerequisite_notice'] or 'None'}\n"
         f"- Overall Score: {overall_score}/100\n"
         f"- AI Readiness: {ai_readiness}/100\n"
     )
@@ -479,14 +632,24 @@ def run_phase1(
         template_html = audit_template.read_text(encoding="utf-8")
         audit_json_str = json.dumps(audit_json)
         pattern = r"const AUDIT_DATA = \{.*?\};\n"
-        replacement = f"const AUDIT_DATA = {audit_json_str};\n"
-        final_html = _re.sub(pattern, replacement, template_html, flags=_re.DOTALL)
+        final_html = _re.sub(
+            pattern,
+            lambda _: f"const AUDIT_DATA = {audit_json_str};\n",
+            template_html,
+            flags=_re.DOTALL,
+        )
+        final_html = final_html.replace("{{project_name}}", audit_json["metadata"]["project_name"])
         (audit_dir / "audit-report.html").write_text(final_html, encoding="utf-8")
     else:
         (audit_dir / "audit-report.html").write_text(
             "<!doctype html><html><body><h1>DS Audit Report</h1>"
             f"<p>Figma URL: {figma_url}</p>"
             f"<p>Data Source: {source}</p>"
+            f"<p>Data Source Kind: {source_kind}</p>"
+            f"<p>MCP Used: {source_details['mcp_used']}</p>"
+            f"<p>Audit/Optimize Prerequisites Met: {source_details['audit_optimize_prerequisites_met']}</p>"
+            f"<p>Fallback Reason: {fallback_reason or 'None'}</p>"
+            f"<p>Prerequisite Notice: {source_details['prerequisite_notice'] or 'None'}</p>"
             f"<p>Overall Score: {overall_score}/100</p>"
             f"<p>AI Readiness: {ai_readiness}/100</p>"
             "</body></html>"
@@ -498,7 +661,7 @@ def run_phase1(
     if proposed_tokens_json.exists():
         generate_preview(str(proposed_tokens_json), str(html_preview_out))
 
-    return audit_dir, used_design_tokens_path
+    return audit_dir, used_design_tokens_path, source_details
 
 
 def run_phase2(repo_root: Path, script_dir: Path, run_id: str, design_tokens_path: Path):
@@ -584,7 +747,9 @@ def main():
 
     if args.command == "audit":
         run_id = args.run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
-        config_path = script_dir / "pipeline-config.json"
+        config_dir = repo_root / "1_audit-report" / f"audit_{run_id}"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_path = config_dir / "pipeline-config.json"
         config = {
             "run_id": run_id,
             "figma_url": args.figma_url,
@@ -596,7 +761,7 @@ def main():
         config_path.write_text(json.dumps(config, indent=2))
 
         api_token = args.figma_api_token or os.getenv("FIGMA_ACCESS_TOKEN")
-        audit_dir, used_design_tokens_path = run_phase1(
+        audit_dir, used_design_tokens_path, source_details = run_phase1(
             repo_root,
             skill_root,
             args.figma_url,
@@ -607,7 +772,28 @@ def main():
         )
         print("Phase 1 (Audit & Optimize) complete")
         print(f"Run ID: {run_id}")
+        print(f"Data Source: {source_details['source_label']} ({source_details['source_kind']})")
+        print(f"MCP Used: {source_details['mcp_used']}")
+        if source_details["source_reference"]:
+            print(f"Source Reference: {source_details['source_reference']}")
+        print(f"Audit/Optimize Prerequisites Met: {source_details['audit_optimize_prerequisites_met']}")
+        if source_details["fallback_reason"]:
+            print(f"Fallback Reason: {source_details['fallback_reason']}")
+        if source_details["user_notice"]:
+            print(f"NOTICE: {source_details['user_notice']}")
+        if source_details["prerequisite_notice"]:
+            print(f"ACTION REQUIRED: {source_details['prerequisite_notice']}")
+            for action in source_details["prerequisite_actions"]:
+                if action["status"] == "required":
+                    print(f"- {action['title']}: {action['instruction']}")
+                    print(f"  Reason: {action['reason']}")
+        config["audit_optimize_prerequisites_met"] = source_details["audit_optimize_prerequisites_met"]
+        config["prerequisite_notice"] = source_details["prerequisite_notice"]
+        config["prerequisite_actions"] = source_details["prerequisite_actions"]
+        config_path.write_text(json.dumps(config, indent=2))
         print(f"Audit + Optimizer Report: {audit_dir}")
+        print(f"Audit HTML: {audit_dir / 'audit-report.html'}")
+        print(f"Optimizer HTML: {audit_dir / 'optimizer-report.html'}")
         print("To proceed to Phase 2, review the outputs and run: python run_pipeline.py refactor --run-id " + run_id)
 
     elif args.command == "refactor":

@@ -2,21 +2,34 @@ import json
 import os
 import re
 import argparse
+from pathlib import Path
+
+from audit_report_data import normalize_audit_data
 
 
 def build_audit_html(json_path: str, template_path: str, output_path: str):
     """Inject audit JSON data into the HTML template and write to output."""
+    skill_root = Path(template_path).resolve().parent.parent
     with open(json_path, "r", encoding="utf-8") as f:
-        json_data = f.read()
+        json_payload = json.load(f)
+    normalized_payload = normalize_audit_data(json_payload, skill_root)
+    json_data = json.dumps(normalized_payload)
 
     with open(template_path, "r", encoding="utf-8") as f:
         html_template = f.read()
 
     # Replace the AUDIT_DATA block
     pattern = r"const AUDIT_DATA = \{.*?\};\n"
-    replacement = f"const AUDIT_DATA = {json_data};\n"
-
-    new_html = re.sub(pattern, replacement, html_template, flags=re.DOTALL)
+    new_html = re.sub(
+        pattern,
+        lambda _: f"const AUDIT_DATA = {json_data};\n",
+        html_template,
+        flags=re.DOTALL,
+    )
+    new_html = new_html.replace(
+        "{{project_name}}",
+        normalized_payload.get("metadata", {}).get("project_name", "Design System"),
+    )
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(new_html)

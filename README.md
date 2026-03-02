@@ -6,7 +6,7 @@ An AI-native workflow for Figma-based design systems built for existing company 
 
 `Design System Governance Workflow` is a structured workflow for managing the lifecycle of a design system inside an established organization. Unlike a one-shot generate-from-scratch flow, it is designed for staged delivery across audit, refactor, and sync phases, with artifacts that are useful not only for production output but also for governance, internal communication, and reporting.
 
-The skill package lives at `skills/design-system-governance-workflow`, while the skill's user-facing name is `Design System Governance Workflow`.
+The canonical skill package lives at `.agents/skills/design-system-governance-workflow`, while the skill's user-facing name is `Design System Governance Workflow`.
 
 ## Architecture
 
@@ -23,8 +23,9 @@ The skill package lives at `skills/design-system-governance-workflow`, while the
 
 ```text
 .
-├── skills/
-│   └── design-system-governance-workflow/
+├── .agents/
+│   └── skills/
+│       └── design-system-governance-workflow/
 │   ├── SKILL.md
 │   ├── scripts/
 │   └── templates/
@@ -67,13 +68,13 @@ npx skills add <github-owner>/<repo-name> --list
 ### Running a Phase
 ```bash
 # Phase 1: Audit
-python skills/design-system-governance-workflow/scripts/run_pipeline.py audit --figma-url <LINK>
+python .agents/skills/design-system-governance-workflow/scripts/run_pipeline.py audit --figma-url <LINK>
 
 # Phase 2: Refactor (requires Run ID from Phase 1)
-python skills/design-system-governance-workflow/scripts/run_pipeline.py refactor --run-id <RUN_ID>
+python .agents/skills/design-system-governance-workflow/scripts/run_pipeline.py refactor --run-id <RUN_ID>
 
 # Phase 3: Sync (requires Run ID from Phase 2)
-python skills/design-system-governance-workflow/scripts/run_pipeline.py sync --run-id <RUN_ID>
+python .agents/skills/design-system-governance-workflow/scripts/run_pipeline.py sync --run-id <RUN_ID>
 ```
 
 ## License
