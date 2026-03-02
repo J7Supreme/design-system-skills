@@ -1,7 +1,7 @@
 {
-  "run_id": "codex_path_test",
-  "figma_url": "https://www.figma.com/file/test123/Test?node-id=1-2",
-  "figma_mcp_variables": null,
+  "run_id": "provenance_check",
+  "figma_url": "https://www.figma.com/design/test123/Test?node-id=1-2",
+  "figma_mcp_variables": ".tmp-figma-mcp-fixture.json",
   "figma_api_token_provided": false,
   "figma_api_base": "https://api.figma.com/v1",
   "pipeline": [

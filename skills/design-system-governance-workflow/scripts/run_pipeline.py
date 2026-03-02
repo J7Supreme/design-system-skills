@@ -44,6 +44,37 @@ def sanitize_source_reference(source_path, base_dir: Path) -> Optional[str]:
     return source_text
 
 
+def build_source_details(
+    source_kind: str,
+    source_label: str,
+    source_reference: Optional[str],
+    fallback_reason: Optional[str] = None,
+) -> dict:
+    mcp_used = source_kind == "figma-mcp"
+    freshness_note = (
+        "Primary MCP extraction path used."
+        if mcp_used
+        else "Fallback source used; freshness/completeness may differ from direct MCP extraction."
+    )
+    user_notice = None
+    if not mcp_used:
+        reason = fallback_reason or "Figma MCP data was unavailable."
+        user_notice = (
+            f"Used fallback source '{source_label}' because {reason} "
+            "Results may differ in freshness or completeness from direct Figma MCP extraction."
+        )
+
+    return {
+        "source_kind": source_kind,
+        "source_label": source_label,
+        "source_reference": source_reference,
+        "mcp_used": mcp_used,
+        "fallback_reason": fallback_reason,
+        "freshness_note": freshness_note,
+        "user_notice": user_notice,
+    }
+
+
 def first_hex(colors: dict, fallback="#007fff"):
     for v in colors.values():
         if isinstance(v, str) and re.match(r"^#[0-9a-fA-F]{6}$", v):
@@ -322,7 +353,7 @@ def parse_figma_rest_variables_payload(payload: dict) -> dict:
 
 def fetch_figma_variables_via_rest(
     file_id: str, api_token: str, api_base: str = "https://api.figma.com/v1"
-) -> tuple[Optional[dict], Optional[str]]:
+) -> tuple[Optional[dict], Optional[str], Optional[str]]:
     endpoints = [
         f"/files/{file_id}/variables/local",
         f"/files/{file_id}/variables/published",
@@ -342,16 +373,17 @@ def fetch_figma_variables_via_rest(
                 payload = json.loads(resp.read().decode("utf-8"))
                 parsed = parse_figma_rest_variables_payload(payload)
                 if parsed.get("colors"):
-                    return parsed, f"figma-rest-api:{endpoint}"
+                    return parsed, f"figma-rest-api:{endpoint}", None
         except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
             continue
-    return None, None
+    return None, None, "Figma REST API variables could not be retrieved for the requested file."
 
 
 def load_figma_mcp_tokens(
     base_dir: Path, file_id: str, node_id: str, explicit_path: Optional[str] = None
-) -> tuple[Optional[dict], Optional[str], Optional[Path]]:
+) -> tuple[Optional[dict], Optional[str], Optional[Path], Optional[str]]:
     candidate_paths = []
+    attempted_paths = []
     if explicit_path:
         candidate_paths.append(Path(explicit_path))
 
@@ -369,17 +401,21 @@ def load_figma_mcp_tokens(
     )
 
     for path in candidate_paths:
+        attempted_paths.append(path)
         if not path.exists():
             continue
         try:
             payload = json.loads(path.read_text())
             parsed = parse_figma_mcp_variables_payload(payload)
             if parsed.get("colors"):
-                return parsed, "figma-mcp-variables", path
+                return parsed, "figma-mcp-variables", path, None
         except Exception:
             continue
 
-    return None, None, None
+    if attempted_paths:
+        attempted_display = ", ".join(str(path) for path in attempted_paths)
+        return None, None, None, f"No usable Figma MCP snapshot was found in: {attempted_display}"
+    return None, None, None, "No Figma MCP snapshot path was provided or discoverable."
 
 
 def run_phase1(
@@ -391,27 +427,51 @@ def run_phase1(
     figma_api_token: Optional[str] = None,
     figma_api_base: str = "https://api.figma.com/v1",
 ):
-    fallback_tokens, fallback_source_path = load_local_design_tokens(repo_root, skill_root)
-
     file_id, node_id = extract_figma_parts(figma_url)
     design_tokens = None
-    source = None
+    source_label = None
+    source_kind = None
     source_path = None
+    fallback_reason = None
 
     # Priority: MCP source -> REST API -> local fallback
-    design_tokens, source, source_path = load_figma_mcp_tokens(repo_root, file_id, node_id, figma_mcp_variables_path)
+    design_tokens, source_label, source_path, mcp_reason = load_figma_mcp_tokens(
+        repo_root, file_id, node_id, figma_mcp_variables_path
+    )
+    if design_tokens:
+        source_kind = "figma-mcp"
+    else:
+        fallback_reason = mcp_reason
+
     if not design_tokens and figma_api_token:
-        rest_tokens, rest_source = fetch_figma_variables_via_rest(file_id, figma_api_token, figma_api_base)
+        rest_tokens, rest_source, rest_reason = fetch_figma_variables_via_rest(file_id, figma_api_token, figma_api_base)
         if rest_tokens:
             design_tokens = rest_tokens
-            source = rest_source
+            source_label = rest_source
+            source_kind = "figma-rest-api"
             source_path = figma_api_base
+            if mcp_reason:
+                fallback_reason = mcp_reason
+        elif not fallback_reason:
+            fallback_reason = rest_reason
     if not design_tokens:
+        fallback_tokens, fallback_source_path = load_local_design_tokens(repo_root, skill_root)
         design_tokens = fallback_tokens
-        source = "design-tokens.json snapshot"
+        source_label = "design-tokens.json snapshot"
+        source_kind = "local-snapshot"
         source_path = fallback_source_path
+        if figma_api_token:
+            if not fallback_reason:
+                fallback_reason = "Figma MCP and Figma REST API data were unavailable."
+        else:
+            fallback_reason = (
+                f"{fallback_reason} No Figma REST API token was provided."
+                if fallback_reason
+                else "Figma MCP data was unavailable and no Figma REST API token was provided."
+            )
 
     source_reference = sanitize_source_reference(source_path, repo_root)
+    source_details = build_source_details(source_kind, source_label, source_reference, fallback_reason)
 
     # Phase 1 consolidation: all outputs go into a single audit directory
     audit_dir = repo_root / "1_audit-report" / f"audit_{run_id}"
@@ -420,6 +480,7 @@ def run_phase1(
     # Save the design tokens snapshot used for this run
     used_design_tokens_path = audit_dir / "design-tokens.used.json"
     used_design_tokens_path.write_text(json.dumps(design_tokens, indent=2))
+    (audit_dir / "source-provenance.json").write_text(json.dumps(source_details, indent=2))
 
     # ── Optimizer outputs ──
     proposed = build_proposed_tokens(design_tokens)
@@ -429,8 +490,12 @@ def run_phase1(
         "figma_url": figma_url,
         "file_id": file_id,
         "node_id": node_id,
-        "source": source,
+        "source": source_label,
         "source_reference": source_reference,
+        "source_kind": source_kind,
+        "mcp_used": source_details["mcp_used"],
+        "fallback_reason": fallback_reason,
+        "user_notice": source_details["user_notice"],
         "status": "phase1_completed",
     }
     (audit_dir / "optimizer-report.json").write_text(json.dumps(optimizer_report_json, indent=2))
@@ -439,8 +504,11 @@ def run_phase1(
         f"- Figma URL: {figma_url}\n"
         f"- File ID: {file_id}\n"
         f"- Node ID: {node_id}\n"
-        f"- Source: {source}\n"
+        f"- Source: {source_label}\n"
+        f"- Source Kind: {source_kind}\n"
         f"- Source Reference: {source_reference}\n"
+        f"- MCP Used: {source_details['mcp_used']}\n"
+        f"- Fallback Reason: {fallback_reason or 'None'}\n"
     )
 
     # ── Audit outputs ──
@@ -454,8 +522,12 @@ def run_phase1(
             "figma_url": figma_url,
             "audit_timestamp": datetime.now().isoformat(),
             "auditor": "Design System Governance Workflow v1 (pipeline-local)",
-            "data_source": source,
+            "data_source": source_label,
             "data_source_reference": source_reference,
+            "data_source_kind": source_kind,
+            "mcp_used": source_details["mcp_used"],
+            "fallback_reason": fallback_reason,
+            "user_notice": source_details["user_notice"],
         },
         "summary": {
             "overall_score": overall_score,
@@ -467,7 +539,10 @@ def run_phase1(
     (audit_dir / "audit-report.md").write_text(
         "# DS Audit Report\n\n"
         f"- Figma URL: {figma_url}\n"
-        f"- Data Source: {source}\n"
+        f"- Data Source: {source_label}\n"
+        f"- Data Source Kind: {source_kind}\n"
+        f"- MCP Used: {source_details['mcp_used']}\n"
+        f"- Fallback Reason: {fallback_reason or 'None'}\n"
         f"- Overall Score: {overall_score}/100\n"
         f"- AI Readiness: {ai_readiness}/100\n"
     )
@@ -486,7 +561,10 @@ def run_phase1(
         (audit_dir / "audit-report.html").write_text(
             "<!doctype html><html><body><h1>DS Audit Report</h1>"
             f"<p>Figma URL: {figma_url}</p>"
-            f"<p>Data Source: {source}</p>"
+            f"<p>Data Source: {source_label}</p>"
+            f"<p>Data Source Kind: {source_kind}</p>"
+            f"<p>MCP Used: {source_details['mcp_used']}</p>"
+            f"<p>Fallback Reason: {fallback_reason or 'None'}</p>"
             f"<p>Overall Score: {overall_score}/100</p>"
             f"<p>AI Readiness: {ai_readiness}/100</p>"
             "</body></html>"
@@ -498,7 +576,7 @@ def run_phase1(
     if proposed_tokens_json.exists():
         generate_preview(str(proposed_tokens_json), str(html_preview_out))
 
-    return audit_dir, used_design_tokens_path
+    return audit_dir, used_design_tokens_path, source_details
 
 
 def run_phase2(repo_root: Path, script_dir: Path, run_id: str, design_tokens_path: Path):
@@ -596,7 +674,7 @@ def main():
         config_path.write_text(json.dumps(config, indent=2))
 
         api_token = args.figma_api_token or os.getenv("FIGMA_ACCESS_TOKEN")
-        audit_dir, used_design_tokens_path = run_phase1(
+        audit_dir, used_design_tokens_path, source_details = run_phase1(
             repo_root,
             skill_root,
             args.figma_url,
@@ -607,6 +685,14 @@ def main():
         )
         print("Phase 1 (Audit & Optimize) complete")
         print(f"Run ID: {run_id}")
+        print(f"Data Source: {source_details['source_label']} ({source_details['source_kind']})")
+        print(f"MCP Used: {source_details['mcp_used']}")
+        if source_details["source_reference"]:
+            print(f"Source Reference: {source_details['source_reference']}")
+        if source_details["fallback_reason"]:
+            print(f"Fallback Reason: {source_details['fallback_reason']}")
+        if source_details["user_notice"]:
+            print(f"NOTICE: {source_details['user_notice']}")
         print(f"Audit + Optimizer Report: {audit_dir}")
         print("To proceed to Phase 2, review the outputs and run: python run_pipeline.py refactor --run-id " + run_id)
 

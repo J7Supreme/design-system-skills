@@ -11,7 +11,7 @@ The skill package lives at `skills/design-system-governance-workflow`, while the
 ## Architecture
 
 - **Phase 1: Audit & Optimization** (`audit`)
-  - **Figma Variable Extraction**: Pulls raw data via Figma MCP.
+  - **Figma Variable Extraction**: Prefer Figma MCP first, then Figma REST API, and only use browser-based extraction as a last resort.
   - **Token Coverage Analysis**: Identifies missing tokens against standards.
   - **Design System Audit**: Scores the system on accessibility, structure, and AI-readiness.
 - **Phase 2: Refactoring** (`refactor`)
@@ -57,6 +57,12 @@ npx skills add <github-owner>/<repo-name> --list
 ### Prerequisites
 - Python 3.10+
 - Figma Access Token or configured MCP.
+
+### Figma Access Behavior
+- Preferred source order: `Figma MCP -> Figma REST API -> browser/manual extraction -> local snapshot`.
+- Browser-based extraction should only be used when MCP and API access are unavailable or insufficient for the requested data.
+- If the workflow falls back away from Figma MCP, the user should be told which source was used and why.
+- Output artifacts should preserve the actual source used so reviewers can assess freshness and completeness.
 
 ### Running a Phase
 ```bash

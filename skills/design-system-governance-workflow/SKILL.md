@@ -20,6 +20,29 @@ When a user gives you a prompt, you must:
    - If the user asks for a final output (e.g., Phase 3: Code Sync) but provides raw un-audited design data, **you must silently run Phase 1 (Audit & Optimize) and Phase 2 (Refactor) in your mind first** to clean and normalize the data, and *then* output the final synced HTML/CSS/Tailwind code.
    - You do **NOT** produce errors complaining about missing JSON files from previous steps. You are capable of analyzing raw tokens/Figma data and performing the entire pipeline in one shot if required.
 
+## Figma Data Acquisition Policy
+
+When the task requires reading design tokens, variables, or other structured design-system data from Figma, you must use the following source priority and communication rules:
+
+1. **Prefer Figma MCP first.**
+   - If Figma MCP tools are available, use them as the primary source for variable and token extraction.
+   - Before falling back, attempt to verify that MCP is connected/authenticated if the client supports such a check.
+
+2. **Use Figma REST API second.**
+   - Only use the Figma REST API if MCP is unavailable, unauthenticated, inaccessible for the requested file, or does not expose the required variable data.
+
+3. **Use browser-based extraction last.**
+   - Agent browser mode, page scraping, or manual browser inspection must be treated as a last-resort fallback.
+   - Do not choose browser-based extraction when MCP or REST API access is available for the same task.
+
+4. **Always disclose fallback source changes to the user.**
+   - If you could not use Figma MCP and had to fall back to REST API, browser mode, or a local snapshot/export, you must explicitly tell the user in your response.
+   - The disclosure must state which source was used, why MCP was not used, and that the output may differ in freshness or completeness.
+
+5. **Do not silently downgrade acquisition method.**
+   - Silent chaining is allowed for audit/refactor/sync phases, but not for hidden changes in Figma data source.
+   - If the data source changed from MCP to another source, surface that fact briefly and clearly.
+
 ---
 
 # The 3 Expert Phases
@@ -90,5 +113,6 @@ All outputs are saved to a **single dynamically generated, timestamped directory
 2. Ensure you format your outputs perfectly and place them in the correct timestamped directories (`1_audit-report/`, `3_refactor-output/`, `4_code-sync-output/`).
 3. Maintain the `category.role.scale` (e.g. `color.primary.500`) token schema across all steps.
 4. When writing outputs, always ensure valid JSON files and properly formatted Markdown.
+5. When Figma data is involved, preserve provenance. Report whether the source was Figma MCP, Figma REST API, browser extraction, or a local snapshot/export.
 
 End of Skill.
