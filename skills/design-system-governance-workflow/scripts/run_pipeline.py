@@ -258,25 +258,28 @@ def resolve_repo_root() -> Path:
     return skill_root.parent
 
 
-def find_local_design_tokens_path(repo_root: Path, skill_root: Path) -> Path:
-    candidates = [
-        repo_root / "design-tokens.json",
-        skill_root / "design-tokens.json",
-        skill_root / "scripts" / "design-tokens.json",
-    ]
-    for path in candidates:
-        if path.exists():
-            return path
-    raise FileNotFoundError(
-        "No design-tokens.json found. Checked: "
-        + ", ".join(str(path) for path in candidates)
-    )
+def load_explicit_design_tokens_json(explicit_path: Optional[str]) -> tuple[Optional[dict], Optional[Path], Optional[str]]:
+    if not explicit_path:
+        return None, None, "No explicit token JSON was provided."
 
+    path = Path(explicit_path)
+    if not path.exists():
+        return None, path, f"Explicit token JSON file was not found: {path}"
 
-def load_local_design_tokens(repo_root: Path, skill_root: Path):
-    design_tokens_path = find_local_design_tokens_path(repo_root, skill_root)
-    with design_tokens_path.open("r") as f:
-        return json.load(f), design_tokens_path
+    try:
+        with path.open("r") as f:
+            payload = json.load(f)
+    except json.JSONDecodeError as exc:
+        return None, path, f"Explicit token JSON is not valid JSON: {exc}"
+
+    if not isinstance(payload, dict):
+        return None, path, "Explicit token JSON must decode to a JSON object."
+
+    parsed = parse_figma_mcp_variables_payload(payload)
+    if parsed.get("colors"):
+        return parsed, path, None
+
+    return None, path, "Explicit token JSON did not contain usable token data."
 
 
 def infer_color_name(var_name: str) -> str:
@@ -471,6 +474,7 @@ def run_phase1(
     figma_mcp_variables_path: Optional[str] = None,
     figma_api_token: Optional[str] = None,
     figma_api_base: str = "https://api.figma.com/v1",
+    explicit_design_tokens_json: Optional[str] = None,
 ):
     file_id, node_id = extract_figma_parts(figma_url)
     design_tokens = None
@@ -482,7 +486,7 @@ def run_phase1(
     rest_source = None
     rest_reason = None
 
-    # Priority: MCP source -> REST API -> local fallback
+    # Priority: MCP source -> REST API -> explicit user-provided token JSON
     mcp_tokens, mcp_source, mcp_source_path = load_figma_mcp_tokens(repo_root, file_id, node_id, figma_mcp_variables_path)
     mcp_reason = "No usable Figma MCP snapshot was found for the requested file."
     if mcp_tokens:
@@ -515,19 +519,18 @@ def run_phase1(
         api_reason=rest_reason,
     )
     if not design_tokens:
-        fallback_tokens, fallback_source_path = load_local_design_tokens(repo_root, skill_root)
-        design_tokens = fallback_tokens
-        source = "design-tokens.json snapshot"
-        source_kind = "local-snapshot"
-        source_path = fallback_source_path
-        if figma_api_token:
-            if not fallback_reason:
-                fallback_reason = "Figma MCP and Figma REST API data were unavailable."
+        explicit_tokens, explicit_source_path, explicit_reason = load_explicit_design_tokens_json(explicit_design_tokens_json)
+        if explicit_tokens:
+            design_tokens = explicit_tokens
+            source = "explicit user-provided token JSON"
+            source_kind = "explicit-user-token-json"
+            source_path = explicit_source_path
+            fallback_reason = "Figma MCP and Figma REST API were unavailable, so the run used explicit user-provided token JSON."
         else:
-            fallback_reason = (
-                f"{fallback_reason} No Figma REST API token was provided."
-                if fallback_reason
-                else "Figma MCP data was unavailable and no Figma REST API token was provided."
+            reasons = [reason for reason in [fallback_reason, rest_reason, explicit_reason] if reason]
+            raise RuntimeError(
+                "Pipeline aborted: Figma MCP and Figma REST API were unavailable, and no usable explicit user-provided token JSON was supplied. "
+                + " ".join(reasons)
             )
 
     source_reference = sanitize_source_reference(source_path, repo_root)
@@ -729,6 +732,11 @@ def main():
         default="https://api.figma.com/v1",
         help="Figma REST API base URL (default: https://api.figma.com/v1).",
     )
+    parser_audit.add_argument(
+        "--design-tokens-json",
+        default=None,
+        help="Explicit token JSON path. Only use when the user has explicitly provided token JSON to proceed without MCP/API.",
+    )
     parser_audit.add_argument("--run-id", default=None, help="Run identifier; default timestamp")
 
     # Command: refactor (Phase 2)
@@ -756,6 +764,7 @@ def main():
             "figma_mcp_variables": args.figma_mcp_variables,
             "figma_api_token_provided": bool(args.figma_api_token or os.getenv("FIGMA_ACCESS_TOKEN")),
             "figma_api_base": args.figma_api_base,
+            "explicit_design_tokens_json": args.design_tokens_json,
             "pipeline": ["phase1_analysis"],
         }
         config_path.write_text(json.dumps(config, indent=2))
@@ -769,6 +778,7 @@ def main():
             args.figma_mcp_variables,
             api_token,
             args.figma_api_base,
+            args.design_tokens_json,
         )
         print("Phase 1 (Audit & Optimize) complete")
         print(f"Run ID: {run_id}")

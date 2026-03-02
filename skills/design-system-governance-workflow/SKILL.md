@@ -21,12 +21,13 @@ When the task requires reading design tokens, variables, or other structured des
 2. **Use Figma REST API second.**
    - Only use the Figma REST API if MCP is unavailable, unauthenticated, inaccessible for the requested file, or does not expose the required variable data.
 
-3. **Use browser-based extraction last.**
-   - Agent browser mode, page scraping, or manual browser inspection must be treated as a last-resort fallback.
-   - Do not choose browser-based extraction when MCP or REST API access is available for the same task.
+3. **Do not use browser-based or silent local fallback for token extraction.**
+   - Agent browser mode, page scraping, manual browser inspection, and implicit local snapshot files must not be used as fallback token sources for this skill.
+   - If both MCP and REST API are unavailable, this skill must stop instead of silently degrading to another acquisition path.
+   - The only allowed non-MCP/non-API continuation path is when the user explicitly provides raw token JSON in the current conversation and asks you to use it.
 
-4. **Always disclose fallback source changes to the user.**
-   - If you could not use Figma MCP and had to fall back to REST API, browser mode, or a local snapshot/export, you must explicitly tell the user in your response.
+4. **Always disclose source changes to the user.**
+   - If you could not use Figma MCP and had to use REST API or explicitly user-provided token JSON, you must explicitly tell the user in your response.
    - The disclosure must state which source was used, why MCP was not used, and that the output may differ in freshness or completeness.
 
 5. **Do not silently downgrade acquisition method.**
@@ -38,7 +39,8 @@ When the task requires reading design tokens, variables, or other structured des
    - If MCP is not connected, you must explicitly tell the user to connect Figma MCP first.
    - If the Figma REST API is not available, you must explicitly tell the user to provide a valid API token or restore API access.
    - In these audit/optimize scenarios, the user-facing guidance must clearly list these two actions as prerequisites before the run should be treated as the primary or authoritative result.
-   - You may still continue with fallback data when appropriate, but you must clearly label the result as fallback-based and not the preferred primary path.
+   - If both MCP and API are unavailable, do not use this skill and do not fallback.
+   - Exception: if the user explicitly pasted or provided raw token JSON in the current conversation and asked to proceed with it, you may continue using that JSON as an explicit user override. Label the run as based on user-provided token JSON rather than live Figma data.
 
 ## Auto-Routing & Action Chaining
 
@@ -49,6 +51,7 @@ When a user gives you a prompt, you must:
 3. **Chain Actions (Zero-Shot Fallback):** 
    - If the user asks for a final output (e.g., Phase 3: Code Sync) but provides raw un-audited design data, **you must silently run Phase 1 (Audit & Optimize) and Phase 2 (Refactor) in your mind first** to clean and normalize the data, and *then* output the final synced HTML/CSS/Tailwind code.
    - You do **NOT** produce errors complaining about missing JSON files from previous steps. You are capable of analyzing raw tokens/Figma data and performing the entire pipeline in one shot if required.
+   - This silent chaining rule does not permit changing the Figma data acquisition policy. If MCP and API are unavailable, stop unless the user explicitly supplied raw token JSON in the current conversation.
 
 ---
 
@@ -65,7 +68,9 @@ You have access to the following 3 phases. Execute their specific logic when the
   1. Figma MCP is connected for the target file.
   2. Figma REST API access is available for the target file.
 - If either prerequisite is missing, explicitly tell the user to do those two things first.
-- If you proceed anyway with REST fallback, browser fallback, or a local snapshot/export, you must say that the run is fallback-based and may differ in freshness or completeness.
+- If MCP is unavailable but REST API is available, you may proceed with REST data and must say that the run is fallback-based and may differ in freshness or completeness.
+- If both MCP and REST API are unavailable, stop and tell the user this skill cannot be used in its normal path.
+- Exception: if the user explicitly provided raw token JSON in the current conversation, you may proceed with that JSON and must say the run is based on user-provided token JSON rather than live Figma access.
 
 ### Audit Execution:
 - **Input:** Raw Figma links/metadata or raw JSON design tokens.
