@@ -9,6 +9,6 @@
 4_code-sync-output/*
 !4_code-sync-output/.gitkeep
 
-ds-governance-expert/scripts/pipeline-config.json
+skills/design-system-governance-workflow/scripts/pipeline-config.json
 .DS_Store
 .pycache/
