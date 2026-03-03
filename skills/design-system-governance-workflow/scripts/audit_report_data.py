@@ -123,39 +123,58 @@ def summarize_source(metadata: dict) -> str:
     return f"Audit synthesized from {source} ({source_kind})."
 
 
+def summarize_source_ledger(metadata: dict) -> str:
+    entries = metadata.get("data_sources") or []
+    if not entries:
+        return "No source ledger was recorded for this run."
+    parts = []
+    for entry in entries:
+        label = entry.get("label", entry.get("kind", "Unknown source"))
+        status = entry.get("status", "unknown")
+        if entry.get("used_for_audit"):
+            parts.append(f"{label}: used")
+        elif status == "available_not_used":
+            parts.append(f"{label}: available, not used")
+        elif status == "not_provided":
+            parts.append(f"{label}: not provided")
+        else:
+            parts.append(f"{label}: unavailable")
+    return "Source ledger: " + "; ".join(parts) + "."
+
+
 def build_summary_text(metadata: dict, stats: dict, fallback_reason: Optional[str]) -> tuple[str, str]:
     details = [
         summarize_source(metadata),
+        summarize_source_ledger(metadata),
         f"Token inventory observed: {stats['token_count']}.",
         f"Schema coverage estimate: {stats['category_coverage']}%.",
         f"Potential invalid token names: {stats['invalid_name_count']}.",
     ]
+    if metadata.get("user_notice"):
+        details.append(f"User notice: {metadata['user_notice']}")
+    if metadata.get("prerequisite_notice"):
+        details.append(f"Prerequisite notice: {metadata['prerequisite_notice']}")
     if fallback_reason:
         details.append(f"Fallback note: {fallback_reason}")
     text = " ".join(details)
     text_zh = (
         f"本次审计基于 {metadata.get('data_source') or '当前设计 Token 快照'} 生成。"
+        f" 来源台账：{summarize_source_ledger(metadata)}"
         f" 观测到的 Token 数量为 {stats['token_count']}。"
         f" Schema 覆盖率估算为 {stats['category_coverage']}%。"
         f" 潜在不合规 Token 命名数量为 {stats['invalid_name_count']}。"
     )
+    if metadata.get("user_notice"):
+        text_zh += f" 用户提示：{metadata['user_notice']}"
+    if metadata.get("prerequisite_notice"):
+        text_zh += f" 前置条件提示：{metadata['prerequisite_notice']}"
     if fallback_reason:
         text_zh += f" 兜底说明：{fallback_reason}"
     return text, text_zh
 
 
 def build_default_dimensions(summary: dict, metadata: dict, stats: dict, wcag_profile: dict) -> list[dict]:
-    overall = int(summary.get("overall_score", 0))
-    ai_score = int(summary.get("ai_readiness_score", 0))
     dark_mode_required = metadata.get("dark_mode_required", False)
-    dimension_scores = {
-        "token_integrity": clamp(overall - 4 - min(12, stats["invalid_name_count"] // 3)),
-        "component_integrity": clamp(overall - 2),
-        "accessibility": clamp(overall - (10 if dark_mode_required else 4)),
-        "structure_semantics": clamp(ai_score - 4),
-        "variant_coverage": clamp(overall + 3),
-        "naming_consistency": clamp(ai_score - 8 + max(0, 20 - stats["invalid_name_count"]) / 2),
-    }
     metrics = {
         "token_integrity": [
             {"label": "Token inventory", "label_zh": "Token 总数", "value": str(stats["token_count"])},
@@ -165,9 +184,9 @@ def build_default_dimensions(summary: dict, metadata: dict, stats: dict, wcag_pr
         ],
         "component_integrity": [
             {"label": "Component structure source", "label_zh": "组件结构来源", "value": metadata.get("data_source_kind", "N/A")},
-            {"label": "Auto-layout coverage", "label_zh": "自动布局覆盖率", "value": "Pending detailed component scan"},
-            {"label": "Detached instances", "label_zh": "断开实例数量", "value": "Pending detailed component scan"},
-            {"label": "Token usage coverage", "label_zh": "Token 使用覆盖率", "value": f"{stats['category_coverage']}%"},
+            {"label": "Auto-layout coverage", "label_zh": "自动布局覆盖率", "value": "Not analyzed in this run"},
+            {"label": "Detached instances", "label_zh": "断开实例数量", "value": "Not analyzed in this run"},
+            {"label": "Component detail status", "label_zh": "组件明细状态", "value": "Detailed component audit data unavailable"},
         ],
         "accessibility": [
             {"label": "WCAG target", "label_zh": "WCAG 目标级别", "value": wcag_profile.get("target_level", "AA")},
@@ -182,8 +201,8 @@ def build_default_dimensions(summary: dict, metadata: dict, stats: dict, wcag_pr
         ],
         "variant_coverage": [
             {"label": "Focus indicator required", "label_zh": "必须包含焦点指示器", "value": "Yes / 是" if metadata.get("focus_indicator_required") else "No / 否"},
-            {"label": "Missing states", "label_zh": "缺失状态", "value": "Pending component variant scan"},
-            {"label": "Scaffold status", "label_zh": "补全状态", "value": "Fallback metrics applied"},
+            {"label": "Missing states", "label_zh": "缺失状态", "value": "Not analyzed in this run"},
+            {"label": "Variant audit status", "label_zh": "变体审计状态", "value": "Detailed variant coverage unavailable"},
         ],
         "naming_consistency": [
             {"label": "Invalid token names", "label_zh": "无效 Token 命名", "value": str(stats["invalid_name_count"])},
@@ -199,9 +218,9 @@ def build_default_dimensions(summary: dict, metadata: dict, stats: dict, wcag_pr
                 "key": key,
                 "label": label,
                 "label_zh": label_zh,
-                "score": dimension_scores[key],
+                "score": None,
                 "weight": weight,
-                "color": "#22c55e" if dimension_scores[key] >= 80 else "#f59e0b" if dimension_scores[key] >= 65 else "#ef4444",
+                "color": "#71717a",
                 "metrics": metrics[key],
             }
         )
@@ -236,15 +255,27 @@ def build_default_critical_issues(metadata: dict, stats: dict) -> list[dict]:
         )
     issues.append(
         {
-            "area": "Component Integrity",
-            "area_zh": "组件完整性",
-            "issue": "This run used fallback component metrics because detailed component analysis is not yet populated.",
-            "issue_zh": "本次运行使用了兜底组件指标，因为详细组件分析结果尚未写入。",
-            "impact": "The report remains renderable, but component-level findings should be treated as provisional.",
-            "impact_zh": "报告可以稳定展示，但组件层面的结论应视为临时结果。",
+            "area": "Audit Coverage",
+            "area_zh": "审计覆盖率",
+            "issue": "Detailed component and variant audit data were unavailable in this run.",
+            "issue_zh": "本次运行缺少详细的组件与变体审计数据。",
+            "impact": "Sections without underlying measurements are marked as unavailable instead of being scored.",
+            "impact_zh": "没有底层测量数据的部分会标记为不可用，而不是继续给出评分。",
             "severity": "Medium",
         }
     )
+    if metadata.get("fallback_reason"):
+        issues.append(
+            {
+                "area": "Data Provenance",
+                "area_zh": "数据来源",
+                "issue": f"Fallback source was used: {metadata['fallback_reason']}",
+                "issue_zh": f"本次运行使用了兜底来源：{metadata['fallback_reason']}",
+                "impact": "Reviewers should validate the fallback source before treating the run as authoritative.",
+                "impact_zh": "在将本次结果视为权威结论前，需要先验证兜底来源。",
+                "severity": "Medium",
+            }
+        )
     return issues
 
 
@@ -281,49 +312,16 @@ def build_default_roadmap(metadata: dict, stats: dict) -> list[dict]:
 
 
 def build_default_ai_readiness(summary: dict, metadata: dict, stats: dict) -> dict:
-    ai_score = int(summary.get("ai_readiness_score", 0))
     penalties = []
-    if stats["invalid_name_count"] > 0:
-        penalties.append(
-            {
-                "condition": "Invalid token names against configured schema",
-                "condition_zh": "Token 命名不符合配置 schema",
-                "deduction": min(20, max(4, stats["invalid_name_count"])),
-            }
-        )
-    if stats["category_coverage"] < 100:
-        penalties.append(
-            {
-                "condition": "Schema category coverage incomplete",
-                "condition_zh": "Schema 分类覆盖不完整",
-                "deduction": max(4, int((100 - stats["category_coverage"]) / 10)),
-            }
-        )
-    if metadata.get("dark_mode_required"):
-        penalties.append(
-            {
-                "condition": "Dark mode validation still required",
-                "condition_zh": "仍需完成暗色模式校验",
-                "deduction": 6,
-            }
-        )
-    if not penalties:
-        penalties.append(
-            {
-                "condition": "No fallback penalties applied",
-                "condition_zh": "未应用兜底扣分项",
-                "deduction": 0,
-            }
-        )
     return {
-        "score": ai_score,
-        "overall_score_used": summary.get("overall_score", ai_score),
+        "score": None,
+        "overall_score_used": summary.get("overall_score"),
         "hard_code_penalty_applied": False,
-        "semantic_instability_detected": stats["invalid_name_count"] > 0,
-        "prompt_generation_stability_estimate": clamp(ai_score + 5),
+        "semantic_instability_detected": None,
+        "prompt_generation_stability_estimate": None,
         "penalties": penalties,
-        "notes": "AI readiness details were normalized with fallback data so the HTML report remains complete even when detailed analysis fields are missing.",
-        "notes_zh": "AI 就绪性详情已通过兜底数据标准化，因此即使缺少详细分析字段，HTML 报告也能完整展示。",
+        "notes": "AI readiness was not scored in this run because no dedicated AI-readiness analysis data was provided. The report shows provenance and observed token facts only.",
+        "notes_zh": "本次运行未提供专门的 AI 就绪性分析数据，因此没有给出 AI 就绪性评分。报告仅展示来源信息和已观测的 Token 事实。",
     }
 
 
@@ -378,13 +376,15 @@ def normalize_audit_data(raw_data: dict, skill_root: Path, design_tokens: Option
         "mcp_used": False,
         "fallback_reason": None,
         "user_notice": None,
+        "prerequisite_notice": None,
+        "data_sources": [],
     }
     metadata = deep_merge(metadata_defaults, raw_data.get("metadata", {}))
 
     summary_defaults = {
-        "overall_score": 62,
-        "ai_readiness_score": 58,
-        "risk_level": "Medium",
+        "overall_score": None,
+        "ai_readiness_score": None,
+        "risk_level": "Unknown",
     }
     summary = deep_merge(summary_defaults, raw_data.get("summary", {}))
     summary_text, summary_text_zh = build_summary_text(metadata, stats, metadata.get("fallback_reason"))

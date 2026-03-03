@@ -31,8 +31,9 @@ The canonical public skill package lives at `skills/design-system-governance-wor
 ├── .agents/
 │   └── skills/
 │       └── design-system-governance-workflow -> ../../skills/design-system-governance-workflow
-├── 0_optimizer-report/      # Generated optimization reports
-├── 1_audit-report/          # Generated audit reports
+├── 1_audit-report/          # Phase 1 audit + optimizer outputs, including HTML reports and full summary
+├── 3_refactor-output/       # Phase 2 refactor outputs
+├── 4_code-sync-output/      # Phase 3 code sync outputs
 └── ...
 ```
 
@@ -62,8 +63,8 @@ npx skills add <github-owner>/<repo-name> --list
 - Figma Access Token or configured MCP.
 
 ### Figma Access Behavior
-- Preferred source order: `Figma MCP -> Figma REST API -> browser/manual extraction -> local snapshot`.
-- Browser-based extraction should only be used when MCP and API access are unavailable or insufficient for the requested data.
+- Preferred source order: `Figma MCP -> Figma REST API -> explicit user-provided token JSON`.
+- Browser/manual extraction and implicit local snapshot fallback are not part of the supported token acquisition path.
 - If the workflow falls back away from Figma MCP, the user should be told which source was used and why.
 - Output artifacts should preserve the actual source used so reviewers can assess freshness and completeness.
 

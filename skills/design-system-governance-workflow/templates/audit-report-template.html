@@ -193,6 +193,84 @@
       border: 1px solid rgba(34, 197, 94, .3);
     }
 
+    .badge-neutral {
+      background: rgba(113, 113, 122, .15);
+      color: #d4d4d8;
+      border: 1px solid rgba(113, 113, 122, .3);
+    }
+
+    .provenance-banner {
+      display: grid;
+      gap: 16px;
+      padding: 18px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      margin-top: 18px;
+    }
+
+    .provenance-summary {
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    .provenance-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+
+    .source-card {
+      padding: 14px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg);
+      display: grid;
+      gap: 8px;
+    }
+
+    .source-title {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .source-meta {
+      font-size: 12px;
+      color: var(--text-subtle);
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    .notice-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .notice-item {
+      border-left: 3px solid var(--warning);
+      background: var(--bg);
+      padding: 10px 12px;
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.7;
+      border-radius: 0 var(--radius) var(--radius) 0;
+    }
+
+    .empty-state {
+      color: var(--text-subtle);
+      font-size: 13px;
+      line-height: 1.7;
+      padding: 14px;
+      border: 1px dashed var(--border-subtle);
+      border-radius: var(--radius);
+      background: var(--bg);
+    }
+
     /* ── Nav ─────────────────────────────────────────────────────────────── */
     .toc {
       display: flex;
@@ -754,6 +832,7 @@
         <h2 class="section-title" data-i18n="sec_summary">Executive Summary</h2>
         <p class="section-subtitle" data-i18n="sec_summary_sub">Overall scoring and key signals across the design
           system.</p>
+        <div id="provenance-banner" class="provenance-banner"></div>
         <div class="score-grid" id="score-grid"></div>
         <div id="summary-text"
           style="color:var(--text-muted);font-size:14px;line-height:1.9;max-width:720px;margin-top:8px;padding:20px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);transition:var(--transition)">
@@ -1133,17 +1212,41 @@
        ⑤ HELPERS
        ══════════════════════════════════════════════════════════════════════════ */
     function scoreColor(s) {
+      if (typeof s !== 'number' || Number.isNaN(s)) return '#71717a';
       if (s >= 80) return '#22c55e';
       if (s >= 65) return '#f59e0b';
       return '#ef4444';
     }
     function riskClass(r) {
-      return r === 'High' ? 'badge-high' : r === 'Medium' ? 'badge-medium' : 'badge-low';
+      return r === 'High' ? 'badge-high' : r === 'Medium' ? 'badge-medium' : r === 'Low' ? 'badge-low' : 'badge-neutral';
     }
     function priorityClass(p) {
       return p === 'High' ? 'priority-high' : p === 'Medium' ? 'priority-medium' : 'priority-low';
     }
     function zh(val, valZh) { return currentLang === 'zh' && valZh ? valZh : val; }
+    function hasNumber(val) { return typeof val === 'number' && !Number.isNaN(val); }
+    function unavailableText() { return currentLang === 'zh' ? '未评分' : 'Not scored'; }
+    function unavailableDetailText() { return currentLang === 'zh' ? '本次运行未提供该分析数据。' : 'This analysis was not provided in this run.'; }
+    function sourceStatusLabel(status) {
+      const labels = {
+        en: {
+          used: 'Used',
+          available_not_used: 'Available, not used',
+          unavailable: 'Unavailable',
+          not_provided: 'Not provided'
+        },
+        zh: {
+          used: '已使用',
+          available_not_used: '可用但未使用',
+          unavailable: '不可用',
+          not_provided: '未提供'
+        }
+      };
+      return labels[currentLang][status] || status;
+    }
+    function emptyState(message) {
+      return `<div class="empty-state">${message}</div>`;
+    }
 
     /* ══════════════════════════════════════════════════════════════════════════
        ⑥ RENDERERS
@@ -1165,6 +1268,7 @@
         { label: `WCAG ${m.wcag_target}`, color: '#3b82f6' },
         { label: m.token_schema_version, color: '#8b5cf6' },
         { label: m.theme_modes_checked.join(' + ') + ` ${t('mode_label')}`, color: '#06b6d4' },
+        { label: `${currentLang === 'zh' ? '主来源' : 'Primary source'}: ${m.data_source_kind}`, color: '#f97316' },
         {
           label: m.dark_mode_required ? t('dark_mode_req') : t('dark_mode_opt'),
           color: m.dark_mode_required ? '#22c55e' : '#71717a'
@@ -1185,6 +1289,38 @@
       document.querySelector('h1 [data-i18n="hero_heading"]').textContent = t('hero_heading');
     }
 
+    function renderProvenance() {
+      const m = AUDIT_DATA.metadata;
+      const sources = m.data_sources || [];
+      const notices = [m.user_notice, m.prerequisite_notice].filter(Boolean);
+      const summary = currentLang === 'zh'
+        ? `本次报告使用的主来源为 ${m.data_source || 'unknown'}（${m.data_source_kind || 'unknown'}）。MCP 使用状态：${m.mcp_used ? '已使用' : '未使用'}。`
+        : `Primary audit source: ${m.data_source || 'unknown'} (${m.data_source_kind || 'unknown'}). MCP used: ${m.mcp_used ? 'yes' : 'no'}.`;
+
+      const sourceCards = sources.length
+        ? sources.map(source => `
+            <div class="source-card">
+              <div class="source-title">
+                <span>${source.label || source.kind}</span>
+                <span class="badge ${source.used_for_audit ? 'badge-medium' : source.status === 'available_not_used' ? 'badge-low' : 'badge-neutral'}">${sourceStatusLabel(source.status)}</span>
+              </div>
+              <div class="source-meta">${currentLang === 'zh' ? '引用' : 'Reference'}: ${source.reference || (currentLang === 'zh' ? '无' : 'None')}</div>
+              <div class="source-meta">${currentLang === 'zh' ? '说明' : 'Reason'}: ${source.reason || (currentLang === 'zh' ? '无' : 'None')}</div>
+            </div>
+          `).join('')
+        : emptyState(currentLang === 'zh' ? '本次运行未记录来源台账。' : 'No source ledger was recorded for this run.');
+
+      const noticeList = notices.length
+        ? `<div class="notice-list">${notices.map(note => `<div class="notice-item">${note}</div>`).join('')}</div>`
+        : '';
+
+      document.getElementById('provenance-banner').innerHTML = `
+        <div class="provenance-summary">${summary}</div>
+        ${noticeList}
+        <div class="provenance-grid">${sourceCards}</div>
+      `;
+    }
+
     function renderSummary() {
       const s = AUDIT_DATA.summary;
       const circumference = 2 * Math.PI * 44;
@@ -1203,7 +1339,7 @@
       document.getElementById('score-grid').innerHTML = cards.map(c => `
     <div class="score-card ${c.featured ? 'featured' : ''}">
       <div class="score-label">${c.label}${c.weight ? ` <span style="color:var(--border-subtle)">· ${c.weight}</span>` : ''}</div>
-      ${c.radial ? `
+      ${c.radial && hasNumber(c.value) ? `
         <div class="radial-wrap">
           <svg class="radial-svg" width="110" height="110" viewBox="0 0 110 110">
             <circle class="radial-track" cx="55" cy="55" r="44"/>
@@ -1217,12 +1353,13 @@
           </svg>
         </div>
       ` : `
-        <div class="score-value" style="color:${scoreColor(c.value)}">${c.value}<span class="score-max">/100</span></div>
-        <div class="score-bar-wrap">
+        <div class="score-value" style="color:${scoreColor(c.value)}">${hasNumber(c.value) ? `${c.value}<span class="score-max">/100</span>` : unavailableText()}</div>
+        <div class="score-bar-wrap" style="${hasNumber(c.value) ? '' : 'opacity:.45;'}">
           <div class="score-bar-track">
-            <div class="score-bar-fill" style="width:${c.value}%;background:${scoreColor(c.value)}"></div>
+            <div class="score-bar-fill" style="width:${hasNumber(c.value) ? c.value : 0}%;background:${scoreColor(c.value)}"></div>
           </div>
         </div>
+        ${hasNumber(c.value) ? '' : `<div class="source-meta" style="margin-top:10px;">${unavailableDetailText()}</div>`}
       `}
     </div>
   `).join('');
@@ -1235,11 +1372,11 @@
     <div class="dim-card animate">
       <div class="dim-header">
         <span class="dim-name">${zh(d.label, d.label_zh)}</span>
-        <span class="dim-score-badge" style="color:${scoreColor(d.score)}">${d.score}/100</span>
+        <span class="dim-score-badge" style="color:${scoreColor(d.score)}">${hasNumber(d.score) ? `${d.score}/100` : unavailableText()}</span>
       </div>
       <div class="dim-body">
         <div class="dim-bar-track">
-          <div class="dim-bar-fill" style="width:${d.score}%;background:${scoreColor(d.score)}"></div>
+          <div class="dim-bar-fill" style="width:${hasNumber(d.score) ? d.score : 0}%;background:${scoreColor(d.score)}"></div>
         </div>
         <div class="dim-metrics">
           ${d.metrics.map(m => `
@@ -1260,6 +1397,10 @@
         en: { High: 'High', Medium: 'Medium', Low: 'Low' },
         zh: { High: '高', Medium: '中', Low: '低' }
       };
+      if (!AUDIT_DATA.critical_issues.length) {
+        document.getElementById('issues-list').innerHTML = emptyState(currentLang === 'zh' ? '本次运行没有可展示的问题列表。' : 'No issue list was produced for this run.');
+        return;
+      }
       document.getElementById('issues-list').innerHTML = AUDIT_DATA.critical_issues.map(i => `
     <div class="issue-card">
       <div class="issue-severity-bar" style="background:${sevColor[i.severity] || '#71717a'}"></div>
@@ -1278,6 +1419,10 @@
         en: { High: 'High', Medium: 'Medium', Low: 'Low' },
         zh: { High: '高优', Medium: '中优', Low: '低优' }
       };
+      if (!AUDIT_DATA.roadmap.length) {
+        document.getElementById('roadmap-list').innerHTML = emptyState(currentLang === 'zh' ? '本次运行没有路线图建议。' : 'No roadmap recommendations were produced for this run.');
+        return;
+      }
       document.getElementById('roadmap-list').innerHTML = AUDIT_DATA.roadmap.map(r => `
     <div class="roadmap-item">
       <span class="roadmap-priority ${priorityClass(r.priority)}">${priLabel[currentLang][r.priority] || r.priority}</span>
@@ -1292,20 +1437,40 @@
 
     function renderAI() {
       const ai = AUDIT_DATA.ai_readiness;
+      const penaltyLabel = currentLang === 'zh' ? '分' : 'pts';
+      const semanticLabel = ai.semantic_instability_detected === null
+        ? unavailableText()
+        : ai.semantic_instability_detected ? t('signal_detected') : t('signal_none');
+      const hardCodeLabel = ai.semantic_instability_detected === null
+        ? unavailableText()
+        : ai.hard_code_penalty_applied ? t('signal_applied') : t('signal_not_applied');
+      const promptLabel = hasNumber(ai.prompt_generation_stability_estimate)
+        ? `${ai.prompt_generation_stability_estimate}%`
+        : unavailableText();
+      const penaltiesMarkup = ai.penalties.length
+        ? ai.penalties.map(p => `
+          <div class="ai-penalty">
+            <span>${zh(p.condition, p.condition_zh)}</span>
+            <span class="ai-penalty-val">${p.deduction} ${penaltyLabel}</span>
+          </div>
+        `).join('')
+        : emptyState(currentLang === 'zh' ? '本次运行没有 AI 就绪性扣分明细。' : 'No AI-readiness penalty breakdown was produced for this run.');
       const circumference = 2 * Math.PI * 44;
       document.getElementById('ai-grid').innerHTML = `
     <div class="ai-card" style="display:flex;align-items:center;gap:24px;">
       <div class="radial-wrap">
-        <svg class="radial-svg" width="110" height="110" viewBox="0 0 110 110">
-          <circle class="radial-track" cx="55" cy="55" r="44"/>
-          <circle class="radial-fill" cx="55" cy="55" r="44"
-            stroke="${scoreColor(ai.score)}"
-            stroke-dasharray="${circumference}"
-            stroke-dashoffset="${circumference - (ai.score / 100) * circumference}"
-          />
-          <text class="radial-label" x="55" y="55" font-size="22"
-            style="transform:rotate(90deg);transform-origin:55px 55px">${ai.score}</text>
-        </svg>
+        ${hasNumber(ai.score) ? `
+          <svg class="radial-svg" width="110" height="110" viewBox="0 0 110 110">
+            <circle class="radial-track" cx="55" cy="55" r="44"/>
+            <circle class="radial-fill" cx="55" cy="55" r="44"
+              stroke="${scoreColor(ai.score)}"
+              stroke-dasharray="${circumference}"
+              stroke-dashoffset="${circumference - (ai.score / 100) * circumference}"
+            />
+            <text class="radial-label" x="55" y="55" font-size="22"
+              style="transform:rotate(90deg);transform-origin:55px 55px">${ai.score}</text>
+          </svg>
+        ` : `<div class="empty-state" style="width:110px;text-align:center;">${unavailableText()}</div>`}
         <div style="font-size:11px;color:var(--text-subtle);text-align:center;margin-top:4px">
           ${t('score_ai')}<br/>${t('sec_ai').split(' ')[0]}
         </div>
@@ -1315,17 +1480,17 @@
         <div style="display:flex;flex-direction:column;gap:8px;">
           <div class="dim-metric">
             <span>${t('signal_semantic')}</span>
-            <span class="dim-metric-val" style="color:${ai.semantic_instability_detected ? '#f87171' : '#4ade80'}">
-              ${ai.semantic_instability_detected ? t('signal_detected') : t('signal_none')}
+            <span class="dim-metric-val" style="color:${ai.semantic_instability_detected === null ? '#a1a1aa' : ai.semantic_instability_detected ? '#f87171' : '#4ade80'}">
+              ${semanticLabel}
             </span>
           </div>
           <div class="dim-metric">
             <span>${t('signal_hardcode')}</span>
-            <span class="dim-metric-val">${ai.hard_code_penalty_applied ? t('signal_applied') : t('signal_not_applied')}</span>
+            <span class="dim-metric-val">${hardCodeLabel}</span>
           </div>
           <div class="dim-metric">
             <span>${t('signal_prompt')}</span>
-            <span class="dim-metric-val">${ai.prompt_generation_stability_estimate}%</span>
+            <span class="dim-metric-val">${promptLabel}</span>
           </div>
         </div>
       </div>
@@ -1333,15 +1498,10 @@
     <div class="ai-card">
       <div class="ai-card-title">${t('card_penalties')}</div>
       <div class="ai-penalties">
-        ${ai.penalties.map(p => `
-          <div class="ai-penalty">
-            <span>${zh(p.condition, p.condition_zh)}</span>
-            <span class="ai-penalty-val">${p.deduction} pts</span>
-          </div>
-        `).join('')}
+        ${penaltiesMarkup}
         <div class="ai-penalty" style="margin-top:4px;padding-top:10px;border-top:1px solid var(--primary)">
           <span style="font-weight:600;color:var(--text)">${t('penalty_total')}</span>
-          <span class="ai-penalty-val" style="color:${scoreColor(ai.score)};font-size:16px">${ai.score}</span>
+          <span class="ai-penalty-val" style="color:${scoreColor(ai.score)};font-size:16px">${hasNumber(ai.score) ? ai.score : unavailableText()}</span>
         </div>
       </div>
     </div>
@@ -1355,6 +1515,7 @@
     /* ── render all sections + i18n ──────────────────────────────────────────── */
     function renderAll() {
       renderHero();
+      renderProvenance();
       renderSummary();
       renderDimensions();
       renderIssues();

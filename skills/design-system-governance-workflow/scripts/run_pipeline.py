@@ -82,6 +82,24 @@ def build_source_details(
     }
 
 
+def build_source_entry(
+    kind: str,
+    label: str,
+    status: str,
+    used_for_audit: bool,
+    reference: Optional[str] = None,
+    reason: Optional[str] = None,
+) -> dict:
+    return {
+        "kind": kind,
+        "label": label,
+        "status": status,
+        "used_for_audit": used_for_audit,
+        "reference": reference,
+        "reason": reason,
+    }
+
+
 def build_phase1_prerequisite_actions(
     mcp_connected: bool,
     api_connected: bool,
@@ -485,6 +503,14 @@ def run_phase1(
     rest_tokens = None
     rest_source = None
     rest_reason = None
+    explicit_tokens = None
+    explicit_source_path = None
+    explicit_reason = "No explicit token JSON was provided."
+
+    if explicit_design_tokens_json:
+        explicit_tokens, explicit_source_path, explicit_reason = load_explicit_design_tokens_json(
+            explicit_design_tokens_json
+        )
 
     # Priority: MCP source -> REST API -> explicit user-provided token JSON
     mcp_tokens, mcp_source, mcp_source_path = load_figma_mcp_tokens(repo_root, file_id, node_id, figma_mcp_variables_path)
@@ -519,7 +545,6 @@ def run_phase1(
         api_reason=rest_reason,
     )
     if not design_tokens:
-        explicit_tokens, explicit_source_path, explicit_reason = load_explicit_design_tokens_json(explicit_design_tokens_json)
         if explicit_tokens:
             design_tokens = explicit_tokens
             source = "explicit user-provided token JSON"
@@ -544,6 +569,39 @@ def run_phase1(
         audit_optimize_prerequisites_met=prerequisites_met,
     )
 
+    data_sources = [
+        build_source_entry(
+            "figma-mcp",
+            "Figma MCP",
+            "used" if source_kind == "figma-mcp" else "available_not_used" if mcp_tokens else "unavailable",
+            source_kind == "figma-mcp",
+            sanitize_source_reference(mcp_source_path, repo_root) if mcp_source_path else None,
+            None if mcp_tokens else mcp_reason,
+        ),
+        build_source_entry(
+            "figma-rest-api",
+            "Figma REST API",
+            "used" if source_kind == "figma-rest-api" else "available_not_used" if rest_tokens else "unavailable",
+            source_kind == "figma-rest-api",
+            figma_api_base if rest_tokens else None,
+            None if rest_tokens else rest_reason,
+        ),
+        build_source_entry(
+            "explicit-user-token-json",
+            "Explicit user-provided token JSON",
+            "used"
+            if source_kind == "explicit-user-token-json"
+            else "available_not_used"
+            if explicit_tokens
+            else "not_provided"
+            if not explicit_design_tokens_json
+            else "unavailable",
+            source_kind == "explicit-user-token-json",
+            sanitize_source_reference(explicit_source_path, repo_root) if explicit_source_path else None,
+            None if explicit_tokens else explicit_reason,
+        ),
+    ]
+
     # Phase 1 consolidation: all outputs go into a single audit directory
     audit_dir = repo_root / "1_audit-report" / f"audit_{run_id}"
     audit_dir.mkdir(parents=True, exist_ok=True)
@@ -554,6 +612,22 @@ def run_phase1(
 
     # ── Optimizer outputs ──
     proposed = build_proposed_tokens(design_tokens)
+    proposed["metadata"] = {
+        "generated_at": datetime.now().isoformat(),
+        "figma_url": figma_url,
+        "file_id": file_id,
+        "node_id": node_id,
+        "source_kind": source_kind,
+        "source_label": source,
+        "source_reference": source_reference,
+        "mcp_used": source_details["mcp_used"],
+        "fallback_reason": fallback_reason,
+        "user_notice": source_details["user_notice"],
+        "prerequisite_notice": source_details["prerequisite_notice"],
+        "audit_optimize_prerequisites_met": source_details["audit_optimize_prerequisites_met"],
+        "data_sources": data_sources,
+        "proposal_note": "This preview renders generated proposal tokens only. Missing categories are shown as unavailable rather than filled with visual fallback values.",
+    }
     (audit_dir / "proposed-tokens.json").write_text(json.dumps(proposed, indent=2))
 
     optimizer_report_json = {
@@ -569,6 +643,7 @@ def run_phase1(
         "audit_optimize_prerequisites_met": source_details["audit_optimize_prerequisites_met"],
         "prerequisite_notice": source_details["prerequisite_notice"],
         "prerequisite_actions": source_details["prerequisite_actions"],
+        "data_sources": data_sources,
         "status": "phase1_completed",
     }
     (audit_dir / "optimizer-report.json").write_text(json.dumps(optimizer_report_json, indent=2))
@@ -587,8 +662,6 @@ def run_phase1(
     )
 
     # ── Audit outputs ──
-    overall_score = 62
-    ai_readiness = 58
     audit_json = {
         "metadata": {
             "project_name": "Webapp Design System",
@@ -606,11 +679,12 @@ def run_phase1(
             "audit_optimize_prerequisites_met": source_details["audit_optimize_prerequisites_met"],
             "prerequisite_notice": source_details["prerequisite_notice"],
             "prerequisite_actions": source_details["prerequisite_actions"],
+            "data_sources": data_sources,
         },
         "summary": {
-            "overall_score": overall_score,
-            "ai_readiness_score": ai_readiness,
-            "risk_level": "Medium",
+            "overall_score": None,
+            "ai_readiness_score": None,
+            "risk_level": "Unknown",
         },
     }
     audit_json = normalize_audit_data(audit_json, skill_root, design_tokens=design_tokens)
@@ -624,8 +698,8 @@ def run_phase1(
         f"- Audit/Optimize Prerequisites Met: {source_details['audit_optimize_prerequisites_met']}\n"
         f"- Fallback Reason: {fallback_reason or 'None'}\n"
         f"- Prerequisite Notice: {source_details['prerequisite_notice'] or 'None'}\n"
-        f"- Overall Score: {overall_score}/100\n"
-        f"- AI Readiness: {ai_readiness}/100\n"
+        "- Overall Score: Not scored in this run\n"
+        "- AI Readiness: Not scored in this run\n"
     )
 
     # Generate audit HTML using template
@@ -653,8 +727,8 @@ def run_phase1(
             f"<p>Audit/Optimize Prerequisites Met: {source_details['audit_optimize_prerequisites_met']}</p>"
             f"<p>Fallback Reason: {fallback_reason or 'None'}</p>"
             f"<p>Prerequisite Notice: {source_details['prerequisite_notice'] or 'None'}</p>"
-            f"<p>Overall Score: {overall_score}/100</p>"
-            f"<p>AI Readiness: {ai_readiness}/100</p>"
+            "<p>Overall Score: Not scored in this run</p>"
+            "<p>AI Readiness: Not scored in this run</p>"
             "</body></html>"
         )
 
@@ -664,7 +738,114 @@ def run_phase1(
     if proposed_tokens_json.exists():
         generate_preview(str(proposed_tokens_json), str(html_preview_out))
 
-    return audit_dir, used_design_tokens_path, source_details
+    audit_report_json_path = audit_dir / "audit-report.json"
+    audit_report_md_path = audit_dir / "audit-report.md"
+    audit_report_html_path = audit_dir / "audit-report.html"
+    optimizer_report_json_path = audit_dir / "optimizer-report.json"
+    optimizer_report_md_path = audit_dir / "optimizer-report.md"
+    optimizer_report_html_path = audit_dir / "optimizer-report.html"
+    proposed_tokens_path = audit_dir / "proposed-tokens.json"
+    pipeline_config_path = audit_dir / "pipeline-config.json"
+    full_summary_path = audit_dir / "full-summary.md"
+    artifact_manifest_path = audit_dir / "artifact-manifest.json"
+
+    artifact_manifest = {
+        "run_id": run_id,
+        "phase": "audit_optimize",
+        "artifact_directory": {
+            "relative": str(audit_dir.relative_to(repo_root)),
+            "absolute": str(audit_dir.resolve()),
+        },
+        "interactive_reports": {
+            "audit_report_html": {
+                "label": "Audit Report (HTML)",
+                "relative": str(audit_report_html_path.relative_to(repo_root)),
+                "absolute": str(audit_report_html_path.resolve()),
+            },
+            "optimizer_preview_html": {
+                "label": "Optimizer Preview (HTML)",
+                "relative": str(optimizer_report_html_path.relative_to(repo_root)),
+                "absolute": str(optimizer_report_html_path.resolve()),
+            },
+        },
+        "reports": {
+            "full_summary_markdown": {
+                "label": "Full Summary (Markdown)",
+                "relative": str(full_summary_path.relative_to(repo_root)),
+                "absolute": str(full_summary_path.resolve()),
+            },
+            "audit_report_markdown": {
+                "label": "Audit Report (Markdown)",
+                "relative": str(audit_report_md_path.relative_to(repo_root)),
+                "absolute": str(audit_report_md_path.resolve()),
+            },
+            "audit_report_json": {
+                "label": "Audit Report (JSON)",
+                "relative": str(audit_report_json_path.relative_to(repo_root)),
+                "absolute": str(audit_report_json_path.resolve()),
+            },
+            "optimizer_report_markdown": {
+                "label": "Optimizer Report (Markdown)",
+                "relative": str(optimizer_report_md_path.relative_to(repo_root)),
+                "absolute": str(optimizer_report_md_path.resolve()),
+            },
+            "optimizer_report_json": {
+                "label": "Optimizer Report (JSON)",
+                "relative": str(optimizer_report_json_path.relative_to(repo_root)),
+                "absolute": str(optimizer_report_json_path.resolve()),
+            },
+            "proposed_tokens_json": {
+                "label": "Proposed Tokens (JSON)",
+                "relative": str(proposed_tokens_path.relative_to(repo_root)),
+                "absolute": str(proposed_tokens_path.resolve()),
+            },
+            "design_tokens_used_json": {
+                "label": "Design Tokens Used (JSON)",
+                "relative": str(used_design_tokens_path.relative_to(repo_root)),
+                "absolute": str(used_design_tokens_path.resolve()),
+            },
+            "pipeline_config_json": {
+                "label": "Pipeline Config (JSON)",
+                "relative": str(pipeline_config_path.relative_to(repo_root)),
+                "absolute": str(pipeline_config_path.resolve()),
+            },
+        },
+        "source": source_details,
+        "figma": {
+            "url": figma_url,
+            "file_id": file_id,
+            "node_id": node_id,
+        },
+    }
+    artifact_manifest_path.write_text(json.dumps(artifact_manifest, indent=2))
+
+    full_summary_path.write_text(
+        "# Phase 1 Output Summary\n\n"
+        f"- Run ID: {run_id}\n"
+        f"- Artifact Directory: {audit_dir.resolve()}\n"
+        f"- Figma URL: {figma_url}\n"
+        f"- File ID: {file_id}\n"
+        f"- Node ID: {node_id}\n"
+        f"- Data Source: {source_details['source_label']} ({source_details['source_kind']})\n"
+        f"- MCP Used: {source_details['mcp_used']}\n"
+        f"- Audit/Optimize Prerequisites Met: {source_details['audit_optimize_prerequisites_met']}\n"
+        f"- Fallback Reason: {source_details['fallback_reason'] or 'None'}\n"
+        f"- Prerequisite Notice: {source_details['prerequisite_notice'] or 'None'}\n\n"
+        "## Interactive Reports\n\n"
+        f"- Audit Report (HTML): {audit_report_html_path.resolve()}\n"
+        f"- Optimizer Preview (HTML): {optimizer_report_html_path.resolve()}\n\n"
+        "## Source Reports\n\n"
+        f"- Full Summary (Markdown): {full_summary_path.resolve()}\n"
+        f"- Audit Report (Markdown): {audit_report_md_path.resolve()}\n"
+        f"- Audit Report (JSON): {audit_report_json_path.resolve()}\n"
+        f"- Optimizer Report (Markdown): {optimizer_report_md_path.resolve()}\n"
+        f"- Optimizer Report (JSON): {optimizer_report_json_path.resolve()}\n"
+        f"- Proposed Tokens (JSON): {proposed_tokens_path.resolve()}\n"
+        f"- Design Tokens Used (JSON): {used_design_tokens_path.resolve()}\n"
+        f"- Artifact Manifest (JSON): {artifact_manifest_path.resolve()}\n"
+    )
+
+    return audit_dir, used_design_tokens_path, source_details, full_summary_path, artifact_manifest_path
 
 
 def run_phase2(repo_root: Path, script_dir: Path, run_id: str, design_tokens_path: Path):
@@ -770,7 +951,7 @@ def main():
         config_path.write_text(json.dumps(config, indent=2))
 
         api_token = args.figma_api_token or os.getenv("FIGMA_ACCESS_TOKEN")
-        audit_dir, used_design_tokens_path, source_details = run_phase1(
+        audit_dir, used_design_tokens_path, source_details, full_summary_path, artifact_manifest_path = run_phase1(
             repo_root,
             skill_root,
             args.figma_url,
@@ -804,6 +985,8 @@ def main():
         print(f"Audit + Optimizer Report: {audit_dir}")
         print(f"Audit HTML: {audit_dir / 'audit-report.html'}")
         print(f"Optimizer HTML: {audit_dir / 'optimizer-report.html'}")
+        print(f"Full Summary: {full_summary_path}")
+        print(f"Artifact Manifest: {artifact_manifest_path}")
         print("To proceed to Phase 2, review the outputs and run: python run_pipeline.py refactor --run-id " + run_id)
 
     elif args.command == "refactor":

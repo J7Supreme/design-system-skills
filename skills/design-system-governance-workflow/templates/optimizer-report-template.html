@@ -61,6 +61,7 @@
         <header class="mb-12">
             <h1 class="text-4xl font-extrabold tracking-tight mb-2">Design System Proposed Tokens</h1>
             <p class="text-lg text-slate-500">A live preview of the generated token proposals, rendered using standard UI patterns.</p>
+            __PROVENANCE_BANNER__
         </header>
 
         <!-- Color Scales -->
@@ -83,6 +84,7 @@
 
             <div class="mb-8">
                 <h3 class="text-lg font-medium mb-4">Semantic Status</h3>
+                __STATUS_EMPTY_NOTE__
                 
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
                     <div>
@@ -168,10 +170,7 @@
                     <button class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-slate-100 hover:text-slate-900 h-9 px-4 py-2 text-slate-900">
                         Ghost
                     </button>
-                    
-                    <button class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 text-white shadow hover:opacity-90 h-9 px-4 py-2" style="background-color: __DANGER_DEFAULT__">
-                        Destructive
-                    </button>
+                    __DESTRUCTIVE_BUTTON__
                 </div>
             </div>
 
@@ -214,39 +213,7 @@
 
             <div id="alerts" class="mb-12">
                 <h3 class="text-xl font-medium mb-4">Alerts (Semantic Colors)</h3>
-                <div class="space-y-4 max-w-2xl">
-                    <div class="relative w-full rounded-lg border p-4 text-sm flex items-start gap-3" style="background-color: __INFO_SUBTLE__; border-color: __INFO_BORDER__; color: __INFO_TEXT__">
-                        <i data-lucide="info" class="w-5 h-5 mt-0.5"></i>
-                        <div>
-                            <h5 class="mb-1 font-medium leading-none tracking-tight">System Update</h5>
-                            <div class="text-sm opacity-90">A new software version is available for download.</div>
-                        </div>
-                    </div>
-
-                    <div class="relative w-full rounded-lg border p-4 text-sm flex items-start gap-3" style="background-color: __SUCCESS_SUBTLE__; border-color: __SUCCESS_BORDER__; color: __SUCCESS_TEXT__">
-                        <i data-lucide="check-circle-2" class="w-5 h-5 mt-0.5"></i>
-                        <div>
-                            <h5 class="mb-1 font-medium leading-none tracking-tight">Payment Successful</h5>
-                            <div class="text-sm opacity-90">Your transaction has been processed correctly.</div>
-                        </div>
-                    </div>
-
-                    <div class="relative w-full rounded-lg border p-4 text-sm flex items-start gap-3" style="background-color: __WARNING_SUBTLE__; border-color: __WARNING_BORDER__; color: __WARNING_TEXT__">
-                        <i data-lucide="alert-triangle" class="w-5 h-5 mt-0.5"></i>
-                        <div>
-                            <h5 class="mb-1 font-medium leading-none tracking-tight">Usage Warning</h5>
-                            <div class="text-sm opacity-90">You are approaching your monthly API limit.</div>
-                        </div>
-                    </div>
-
-                    <div class="relative w-full rounded-lg border p-4 text-sm flex items-start gap-3" style="background-color: __DANGER_SUBTLE__; border-color: __DANGER_BORDER__; color: __DANGER_TEXT__">
-                        <i data-lucide="alert-octagon" class="w-5 h-5 mt-0.5"></i>
-                        <div>
-                            <h5 class="mb-1 font-medium leading-none tracking-tight">Connection Error</h5>
-                            <div class="text-sm opacity-90">Failed to connect to the database. Please try again.</div>
-                        </div>
-                    </div>
-                </div>
+                __ALERT_PREVIEWS__
             </div>
 
         </section>
