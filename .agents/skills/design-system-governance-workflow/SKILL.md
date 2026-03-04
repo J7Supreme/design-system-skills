@@ -74,7 +74,7 @@ You have access to the following 3 phases. Execute their specific logic when the
 
 ### Audit Execution:
 - **Input:** Raw Figma links/metadata or raw JSON design tokens.
-- **Rules:** Load WCAG requirements from `wcag-profile-customer-v1.json` and token naming requirements from `ai-token-schema-simple-v1.json`. Enforce `category.role.scale` token nomenclature from the schema file rather than hard-coding rule text in the prompt or pipeline.
+- **Rules:** Load WCAG requirements from `wcag-profile-customer-v1.json` and token naming requirements from `ai-token-schema-simple-v1.json`. Enforce `category.role.state` token nomenclature from the schema file rather than hard-coding rule text in the prompt or pipeline.
 - **6 Audit Dimensions:**
   1. Token Integrity (hard-coded styles, unused tokens)
   2. Component Integrity (auto-layout, detached instances)
@@ -85,7 +85,7 @@ You have access to the following 3 phases. Execute their specific logic when the
 
 ### Optimization Execution:
 - **Rules:** Ensure 10-category completeness (Color Brand/Neutral/Semantic/Aliases, Spacing, Typography, Radius, Shadow, Z-Index, Motion).
-  - Fully scaffold 50-900 numeric scales for brand and neutral colors (anchor to standard 500 equivalent).
+  - Scaffold brand and neutral colors using semantic state names: `default`, `subtle`, `muted`, `hover`, `active`, `strong`, `inverse`. Do **not** use numeric scales like `50`–`900`.
   - Ensure all text/background contrast pairs pass WCAG AA.
 
 ### Combined Output:
@@ -105,7 +105,7 @@ All outputs are saved to a **single dynamically generated, timestamped directory
 **Goal:** Transform findings/raw data into normalized, structurally sound formats.
 **Execution:**
 - **Tasks:**
-  - *Token Normalization*: Replace hard-coded values with standard `category.role.scale` tokens.
+  - *Token Normalization*: Replace hard-coded values with standard `category.role.state` tokens.
   - *Accessibility Repair*: Convert any opacity-based hexes (`#111d4a66`) into solid resolved colors against white. Ensure text contrast passes.
   - *Dark Mode Generation*: Create a complete dark mode variable set if requested using standard dark surfaces.
   - *Component Refactoring*: Split overloaded components, enforce Auto-layout, and fix structure.
@@ -131,7 +131,7 @@ All outputs are saved to a **single dynamically generated, timestamped directory
 
 1. **Never complain about missing intermediate files if you can infer them.** For example, if a user wants a Tailwind config from a messy Figma link, run Phase 1 (Audit & Optimize) -> Phase 2 (Refactor) -> Phase 3 (Sync) silently and output the Tailwind file along with a brief summary of the cleaning you performed.
 2. Ensure you format your outputs perfectly and place them in the correct timestamped directories (`1_audit-report/`, `3_refactor-output/`, `4_code-sync-output/`).
-3. Maintain the `category.role.scale` (e.g. `color.primary.500`) token schema across all steps.
+3. Maintain the `category.role.state` (e.g. `color.primary.default`) token schema across all steps.
 4. When writing outputs, always ensure valid JSON files and properly formatted Markdown.
 
 End of Skill.

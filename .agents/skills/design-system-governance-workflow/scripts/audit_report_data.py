@@ -197,7 +197,7 @@ def build_default_dimensions(summary: dict, metadata: dict, stats: dict, wcag_pr
         "structure_semantics": [
             {"label": "Schema pattern", "label_zh": "Schema 模式", "value": metadata.get("token_schema_structure", "flat")},
             {"label": "Semantic layer required", "label_zh": "是否要求语义层", "value": "Yes / 是" if metadata.get("semantic_layer_required") else "No / 否"},
-            {"label": "Naming convention", "label_zh": "命名规范", "value": metadata.get("token_naming_pattern", "category.role.scale")},
+            {"label": "Naming convention", "label_zh": "命名规范", "value": metadata.get("token_naming_pattern", "category.role.state")},
         ],
         "variant_coverage": [
             {"label": "Focus indicator required", "label_zh": "必须包含焦点指示器", "value": "Yes / 是" if metadata.get("focus_indicator_required") else "No / 否"},
@@ -285,8 +285,8 @@ def build_default_roadmap(metadata: dict, stats: dict) -> list[dict]:
             "priority": "High",
             "area": "Token Naming",
             "area_zh": "Token 命名",
-            "action": f"Rename the {stats['invalid_name_count']} invalid token names to follow {metadata.get('token_naming_pattern', 'category.role.scale')}.",
-            "action_zh": f"将 {stats['invalid_name_count']} 个无效 Token 名称重命名为 {metadata.get('token_naming_pattern', 'category.role.scale')} 规范。",
+            "action": f"Rename the {stats['invalid_name_count']} invalid token names to follow {metadata.get('token_naming_pattern', 'category.role.state')}.",
+            "action_zh": f"将 {stats['invalid_name_count']} 个无效 Token 名称重命名为 {metadata.get('token_naming_pattern', 'category.role.state')} 规范。",
             "expected_impact": "Improves token parsing stability for audits, refactors, and code sync.",
             "expected_impact_zh": "提升审计、重构和代码同步阶段的 Token 可解析性。",
         },

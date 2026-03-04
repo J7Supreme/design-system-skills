@@ -902,8 +902,8 @@
         overall_score: 47,
         ai_readiness_score: 17,
         risk_level: "High",
-        text: "The Webapp Design System exhibits a fundamentally immature token architecture for its scale. While a large library of visual tokens exists, the naming convention is inconsistent, non-semantic, and violates the flat category.role.scale schema. Multiple font families are in use with no unified typography system. Dark mode variables are entirely absent despite dark_mode_required being true. Component layer naming mixes Chinese and English without a unified taxonomy, making AI prompt generation highly unstable.",
-        text_zh: "Webapp 设计系统在其规模上表现出根本性不成熟的 Token 架构。尽管存在大量视觉 Token，但命名规范不一致、缺乏语义性，违反了 ai-token-schema-simple-v1 要求的扁平 category.role.scale 结构。多个字体家族并存，缺乏统一的字体系统。尽管 dark_mode_required 为 true，暗色模式变量完全缺失。组件图层命名混用中英文，没有统一分类体系，导致 AI 提示词生成极不稳定。"
+        text: "The Webapp Design System exhibits a fundamentally immature token architecture. While a large library of visual tokens exists, the naming convention is inconsistent, non-semantic, and violates the flat category.role.state schema. Multiple font families are in use with no unified typography system. Dark mode variables are entirely absent despite dark_mode_required being true. Component layer naming mixes Chinese and English without a unified taxonomy, making AI prompt generation highly unstable.",
+        text_zh: "Webapp 设计系统表现出根本性不成熟的 Token 架构。尽管存在大量视觉 Token，但命名规范不一致、缺乏语义性，违反了 ai-token-schema-simple-v1 要求的扁平 category.role.state 结构。多个字体家族并存，缺乏统一的字体系统。尽管 dark_mode_required 为 true，暗色模式变量完全缺失。组件图层命名混用中英文，没有统一分类体系，导致 AI 提示词生成极不稳定。"
       },
       dimensions: [
         {
@@ -1024,8 +1024,8 @@
         {
           priority: "High",
           area: "Token Naming", area_zh: "Token 命名",
-          action: "Rename all tokens to category.role.scale per ai-token-schema-simple-v1. Fix all typos. Remove phantom gradient tokens.",
-          action_zh: "按 ai-token-schema-simple-v1 将所有 Token 重命名为 category.role.scale 格式，修正拼写错误并删除空值渐变 Token。",
+          action: "Rename all tokens to category.role.state per ai-token-schema-simple-v1. Use semantic states (e.g. color.primary.default, color.primary.subtle). Fix all typos. Remove phantom gradient tokens.",
+          action_zh: "按 ai-token-schema-simple-v1 将所有 Token 重命名为 category.role.state 格式，使用语义状态名（如 color.primary.default、color.primary.subtle），修正拼写错误并删除空值渐变 Token。",
           expected_impact: "Naming consistency score rises from 30 to 75+; AI readiness unblocked",
           expected_impact_zh: "命名一致性得分从 30 升至 75+，AI 就绪能力解除阻塞"
         },

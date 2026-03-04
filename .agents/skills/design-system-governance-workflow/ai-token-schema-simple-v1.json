@@ -1,6 +1,6 @@
 {
   "schema_name": "ai_token_schema_simple_v1",
-  "description": "Simple token naming standard for early-stage DS governance",
+  "description": "Simple token naming standard for early-stage DS governance. Uses semantic state names instead of numeric scales.",
   "structure_type": "flat",
   "categories": [
     "color",
@@ -12,18 +12,55 @@
     "opacity"
   ],
   "naming_convention": {
-    "pattern": "category.role.scale",
-    "example": "color.primary.500",
+    "pattern": "category.role.state",
+    "example": "color.primary.default",
     "separator": ".",
     "lowercase_required": true,
     "no_spaces_allowed": true
   },
+  "allowed_states": [
+    "default",
+    "subtle",
+    "strong",
+    "muted",
+    "inverse",
+    "hover",
+    "focus",
+    "active",
+    "disabled",
+    "error",
+    "warning",
+    "success",
+    "info",
+    "on-color",
+    "base",
+    "surface",
+    "overlay"
+  ],
   "rules": {
     "hard_code_allowed": true,
     "hard_code_warning_threshold_percent": 15,
     "semantic_layer_required": false,
     "component_layer_required": false,
-    "token_reference_required": false
+    "token_reference_required": false,
+    "numeric_scale_states_forbidden": true,
+    "numeric_scale_states_note": "States must be semantic names (e.g. 'default', 'subtle', 'strong') not numeric scales (e.g. '300', '500', '900')."
+  },
+  "migration_notes": {
+    "from_pattern": "category.role.scale",
+    "from_example": "color.primary.500",
+    "mapping": {
+      "50":  "subtle",
+      "100": "subtle",
+      "200": "muted",
+      "300": "muted",
+      "400": "hover",
+      "500": "default",
+      "600": "active",
+      "700": "strong",
+      "800": "strong",
+      "900": "inverse"
+    }
   },
   "future_upgrade_path": {
     "next_schema": "ai_token_schema_layered_v2",

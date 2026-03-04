@@ -107,28 +107,36 @@ def main():
     with (out_dir / "accessibility-fixes.json").open("w") as f:
         json.dump({"fixes": accessibility_fixes}, f, indent=4)
 
+    # Semantic state inversion map for dark mode generation.
+    # Light -> Dark semantic state mapping (inverts perceptual lightness).
+    DARK_MODE_STATE_MAP = {
+        "subtle": "inverse",
+        "muted": "strong",
+        "hover": "active",
+        "default": "default",
+        "active": "hover",
+        "strong": "muted",
+        "inverse": "subtle",
+    }
+
     dark_mode_tokens = {}
     for category, roles in proposed_tokens.get("color", {}).items():
         dark_mode_tokens[category] = {}
-        for role, scales in roles.items():
+        for role, states in roles.items():
             dark_mode_tokens[category][role] = {}
-            if "500" in scales:
-                for scale_val, data in scales.items():
-                    if scale_val.isdigit():
-                        num = int(scale_val)
-                        inverted_num = 950 - num if num != 50 else 900
-                        if inverted_num == 450:
-                            inverted_num = 500
-                        legacy_val = scales.get(str(inverted_num), data)["value"]
-                        dark_mode_tokens[category][role][scale_val] = {
-                            "value": legacy_val,
-                            "method": f"Inverted from light mode {inverted_num}",
-                        }
-                    else:
-                        dark_mode_tokens[category][role][scale_val] = {
-                            "value": data["value"],
-                            "method": "Direct passthrough for non-numeric scales (requires manual tuning)",
-                        }
+            for state_key, data in states.items():
+                dark_state = DARK_MODE_STATE_MAP.get(state_key)
+                if dark_state and dark_state in states:
+                    source_val = states[dark_state]["value"]
+                    dark_mode_tokens[category][role][state_key] = {
+                        "value": source_val,
+                        "method": f"Semantic inversion: dark '{state_key}' mapped from light '{dark_state}'",
+                    }
+                else:
+                    dark_mode_tokens[category][role][state_key] = {
+                        "value": data["value"],
+                        "method": "Direct passthrough — no semantic inversion mapping (requires manual tuning)",
+                    }
 
     with (out_dir / "dark-mode-tokens.json").open("w") as f:
         json.dump({"color": dark_mode_tokens}, f, indent=4)

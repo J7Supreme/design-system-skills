@@ -163,39 +163,33 @@ def build_proposed_tokens(design_tokens: dict):
             "color": {
                 "brand": {
                     "primary": {
-                        "50": {"value": "#eff6ff"},
-                        "100": {"value": "#dbeafe"},
-                        "200": {"value": "#bfdbfe"},
-                        "300": {"value": "#93c5fd"},
-                        "400": {"value": "#60a5fa"},
-                        "500": {"value": primary},
-                        "600": {"value": "#2563eb"},
-                        "700": {"value": "#1d4ed8"},
-                        "800": {"value": "#1e40af"},
-                        "900": {"value": "#1e3a8a"},
+                        "subtle": {"value": "#eff6ff"},
+                        "muted": {"value": "#bfdbfe"},
+                        "hover": {"value": "#60a5fa"},
+                        "default": {"value": primary},
+                        "active": {"value": "#2563eb"},
+                        "strong": {"value": "#1d4ed8"},
+                        "inverse": {"value": "#1e3a8a"},
                     }
                 },
                 "neutral": {
-                    "50": {"value": "#f8fafc"},
-                    "100": {"value": "#f1f5f9"},
-                    "200": {"value": "#e2e8f0"},
-                    "300": {"value": "#cbd5e1"},
-                    "400": {"value": "#94a3b8"},
-                    "500": {"value": "#64748b"},
-                    "600": {"value": "#475569"},
-                    "700": {"value": "#334155"},
-                    "800": {"value": "#1e293b"},
-                    "900": {"value": "#0f172a"},
+                    "subtle": {"value": "#f8fafc"},
+                    "muted": {"value": "#e2e8f0"},
+                    "hover": {"value": "#94a3b8"},
+                    "default": {"value": "#64748b"},
+                    "active": {"value": "#475569"},
+                    "strong": {"value": "#334155"},
+                    "inverse": {"value": "#0f172a"},
                 },
             },
             "background": {
-                "primary": {"value": colors.get("Background/General", "#ffffff")},
+                "default": {"value": colors.get("Background/General", "#ffffff")},
                 "surface": {"value": colors.get("Background/Card", "#ffffff")},
             },
             "text": {
-                "primary": {"value": colors.get("Text/Primary", "#111d4a")},
-                "secondary": {"value": colors.get("Text/Secondary", "#64748b")},
-                "oncolor": {"value": colors.get("Text On Color", "#ffffff")},
+                "default": {"value": colors.get("Text/Primary", "#111d4a")},
+                "muted": {"value": colors.get("Text/Secondary", "#64748b")},
+                "on-color": {"value": colors.get("Text On Color", "#ffffff")},
             },
             "border": {
                 "default": {"value": colors.get("Dividers & borders", "#e2e8f0")}
@@ -235,8 +229,8 @@ def build_proposed_tokens(design_tokens: dict):
                 },
             },
             "shadow": {
-                "sm": {"value": "0 1px 2px rgba(0,0,0,0.08)"},
-                "md": {"value": "0 4px 8px rgba(0,0,0,0.12)"},
+                "default": {"value": "0 1px 2px rgba(0,0,0,0.08)"},
+                "strong": {"value": "0 4px 8px rgba(0,0,0,0.12)"},
             },
             "z": {
                 "base": {"value": "0"},
@@ -247,13 +241,13 @@ def build_proposed_tokens(design_tokens: dict):
             "motion": {
                 "duration": {
                     "fast": {"value": "120ms"},
-                    "normal": {"value": "200ms"},
+                    "default": {"value": "200ms"},
                     "slow": {"value": "320ms"},
                 },
                 "easing": {"standard": {"value": "cubic-bezier(0.2, 0, 0, 1)"}},
             },
             "icon": {
-                "primary": {"value": colors.get("Stoke/Icon stroke", "#111d4a")}
+                "default": {"value": colors.get("Stoke/Icon stroke", "#111d4a")}
             },
         }
     }
