@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 # Import the new decoupled HTML preview generator
 from audit_report_data import normalize_audit_data
+from build_audit_html import render_audit_html
 from generate_token_preview import generate_preview
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -705,17 +706,8 @@ def run_phase1(
     # Generate audit HTML using template
     audit_template = skill_root / "templates" / "audit-report-template.html"
     if audit_template.exists():
-        import re as _re
         template_html = audit_template.read_text(encoding="utf-8")
-        audit_json_str = json.dumps(audit_json)
-        pattern = r"const AUDIT_DATA = \{.*?\};\n"
-        final_html = _re.sub(
-            pattern,
-            lambda _: f"const AUDIT_DATA = {audit_json_str};\n",
-            template_html,
-            flags=_re.DOTALL,
-        )
-        final_html = final_html.replace("{{project_name}}", audit_json["metadata"]["project_name"])
+        final_html = render_audit_html(template_html, audit_json)
         (audit_dir / "audit-report.html").write_text(final_html, encoding="utf-8")
     else:
         (audit_dir / "audit-report.html").write_text(

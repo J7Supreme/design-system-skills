@@ -4,6 +4,29 @@ import argparse
 from datetime import datetime
 from html import escape
 
+
+def get_optimizer_template_context(metadata: dict) -> dict:
+    project_name = metadata.get("project_name") or "Design System"
+    timestamp_raw = metadata.get("generated_at") or metadata.get("audit_timestamp") or ""
+
+    try:
+        generated_dt = datetime.fromisoformat(timestamp_raw)
+    except ValueError:
+        generated_dt = datetime.now()
+
+    display_date = generated_dt.strftime("%b %d, %Y")
+    iso_date = generated_dt.date().isoformat()
+
+    return {
+        "__PROJECT_NAME__": escape(project_name),
+        "__REPORT_DATE_DISPLAY__": escape(display_date),
+        "__REPORT_DATE_ISO__": escape(iso_date),
+        "__REPORT_SUBTITLE__": escape(
+            f"Previewing generated token proposals for {project_name}, built on {display_date}."
+        ),
+    }
+
+
 def generate_preview(input_json_path: str, output_html_path: str):
     with open(input_json_path, "r") as f:
         proposed_data = json.load(f)
@@ -361,6 +384,9 @@ def generate_preview(input_json_path: str, output_html_path: str):
         .replace("__MOTION_TABLE__", generate_motion_table(motion_tokens)) \
         .replace("__DESTRUCTIVE_BUTTON__", generate_destructive_button()) \
         .replace("__ALERT_PREVIEWS__", generate_alert_previews())
+
+    for placeholder, value in get_optimizer_template_context(metadata).items():
+        html_content = html_content.replace(placeholder, value)
 
     with open(output_html_path, "w", encoding="utf-8") as f:
         f.write(html_content)
